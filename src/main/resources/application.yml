@@ -1,0 +1,110 @@
+server:
+  port: 8081
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: norma-control
+
+  # ── PostgreSQL ───────────────────────────────────────────────────────
+  datasource:
+    url: jdbc:postgresql://localhost:5432/normacontrol
+    username: ${DB_USERNAME:normacontrol}
+    password: ${DB_PASSWORD:normacontrol}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      idle-timeout: 30000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  # ── Liquibase ────────────────────────────────────────────────────────
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+    enabled: true
+
+  # ── Redis ────────────────────────────────────────────────────────────
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 5000
+
+  # ── Kafka ────────────────────────────────────────────────────────────
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    consumer:
+      group-id: norma-control-group
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: "ru.normacontrol.*"
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+  # ── OAuth2 ───────────────────────────────────────────────────────────
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: ${GITHUB_CLIENT_ID:your-github-client-id}
+            client-secret: ${GITHUB_CLIENT_SECRET:your-github-client-secret}
+            scope: read:user,user:email
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret}
+            scope: openid,profile,email
+
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+
+# ── MinIO ──────────────────────────────────────────────────────────────
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket-name: ${MINIO_BUCKET:norma-documents}
+
+# ── JWT ────────────────────────────────────────────────────────────────
+jwt:
+  secret: ${JWT_SECRET:c2VjcmV0S2V5Rm9yTm9ybWFDb250cm9sQXBwbGljYXRpb25UaGF0SXNMb25nRW5vdWdo}
+  access-token-expiration: 3600000      # 1 час
+  refresh-token-expiration: 2592000000  # 30 дней
+
+# ── Kafka Topics ───────────────────────────────────────────────────────
+kafka:
+  topic:
+    document-check: document-check-topic
+    check-result: check-result-topic
+
+# ── Springdoc OpenAPI ──────────────────────────────────────────────────
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /docs
+    operations-sorter: method
+    tags-sorter: alpha
+
+# ── Logging ────────────────────────────────────────────────────────────
+logging:
+  level:
+    root: INFO
+    ru.normacontrol: DEBUG
+    org.springframework.security: INFO
+    org.hibernate.SQL: WARN

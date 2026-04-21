@@ -1,0 +1,113 @@
+package ru.normacontrol.application.usecase;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import ru.normacontrol.application.dto.request.LoginRequest;
+import ru.normacontrol.application.dto.request.RefreshTokenRequest;
+import ru.normacontrol.application.dto.request.RegisterRequest;
+import ru.normacontrol.application.dto.response.AuthResponse;
+import ru.normacontrol.domain.entity.Role;
+import ru.normacontrol.domain.entity.User;
+import ru.normacontrol.domain.enums.RoleName;
+import ru.normacontrol.domain.repository.UserRepository;
+import ru.normacontrol.infrastructure.security.JwtTokenProvider;
+import ru.normacontrol.infrastructure.security.RefreshTokenService;
+
+import java.time.LocalDateTime;
+import java.util.Set;
+import java.util.UUID;
+
+/**
+ * Use Case: Аутентификация и регистрация пользователей.
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AuthUseCase {
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final RefreshTokenService refreshTokenService;
+
+    /**
+     * Регистрация нового пользователя.
+     */
+    @Transactional
+    public AuthResponse register(RegisterRequest request) {
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new IllegalArgumentException("Пользователь с таким email уже существует");
+        }
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new IllegalArgumentException("Пользователь с таким именем уже существует");
+        }
+
+        User user = User.builder()
+                .id(UUID.randomUUID())
+                .email(request.getEmail())
+                .username(request.getUsername())
+                .passwordHash(passwordEncoder.encode(request.getPassword()))
+                .fullName(request.getFullName())
+                .enabled(true)
+                .roles(Set.of(Role.builder().id(1L).name(RoleName.ROLE_USER).build()))
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        userRepository.save(user);
+        log.info("Зарегистрирован новый пользователь: {}", user.getUsername());
+
+        return generateTokens(user);
+    }
+
+    /**
+     * Аутентификация пользователя по логину/паролю.
+     */
+    @Transactional(readOnly = true)
+    public AuthResponse login(LoginRequest request) {
+        User user = userRepository.findByEmail(request.getLogin())
+                .or(() -> userRepository.findByUsername(request.getLogin()))
+                .orElseThrow(() -> new BadCredentialsException("Неверный логин или пароль"));
+
+        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            throw new BadCredentialsException("Неверный логин или пароль");
+        }
+
+        if (!user.isEnabled()) {
+            throw new BadCredentialsException("Аккаунт заблокирован");
+        }
+
+        log.info("Пользователь авторизован: {}", user.getUsername());
+        return generateTokens(user);
+    }
+
+    /**
+     * Обновление access token по refresh token.
+     */
+    @Transactional
+    public AuthResponse refresh(RefreshTokenRequest request) {
+        UUID userId = refreshTokenService.validateRefreshToken(request.getRefreshToken());
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new BadCredentialsException("Пользователь не найден"));
+
+        refreshTokenService.revokeRefreshToken(request.getRefreshToken());
+        log.info("Токен обновлён для пользователя: {}", user.getUsername());
+        return generateTokens(user);
+    }
+
+    private AuthResponse generateTokens(User user) {
+        String accessToken = jwtTokenProvider.generateAccessToken(user);
+        String refreshToken = refreshTokenService.createRefreshToken(user.getId());
+
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .tokenType("Bearer")
+                .expiresIn(jwtTokenProvider.getAccessTokenExpiration() / 1000)
+                .build();
+    }
+}
