@@ -28,6 +28,8 @@ public class CheckResult {
 
     /**
      * Добавить нарушение к результату проверки.
+     *
+     * @param violation нарушение для добавления
      */
     public void addViolation(Violation violation) {
         violations.add(violation);
@@ -35,13 +37,13 @@ public class CheckResult {
     }
 
     /**
-     * Определить, прошёл ли документ проверку (нет CRITICAL/ERROR нарушений).
+     * Определить, прошёл ли документ проверку.
+     * Документ НЕ проходит, если есть хотя бы одно CRITICAL нарушение.
      */
     public void evaluate() {
         this.passed = violations.stream()
                 .noneMatch(v ->
-                        v.getSeverity() == ru.normacontrol.domain.enums.ViolationSeverity.CRITICAL ||
-                        v.getSeverity() == ru.normacontrol.domain.enums.ViolationSeverity.ERROR);
+                        v.getSeverity() == ru.normacontrol.domain.enums.ViolationSeverity.CRITICAL);
         this.totalViolations = violations.size();
     }
 }

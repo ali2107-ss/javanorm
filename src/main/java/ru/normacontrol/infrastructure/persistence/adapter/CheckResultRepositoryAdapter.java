@@ -39,39 +39,27 @@ public class CheckResultRepositoryAdapter implements CheckResultRepository {
     @Override
     public List<CheckResult> findByDocumentId(UUID documentId) {
         return jpaRepository.findByDocumentId(documentId).stream()
-                .map(this::toDomain)
-                .collect(Collectors.toList());
+                .map(this::toDomain).collect(Collectors.toList());
     }
 
     @Override
     public Optional<CheckResult> findLatestByDocumentId(UUID documentId) {
-        return jpaRepository.findLatestByDocumentId(documentId)
-                .map(this::toDomain);
+        return jpaRepository.findLatestByDocumentId(documentId).map(this::toDomain);
     }
-
-    // ── Маппинг Domain ↔ JPA ──────────────────────────────────────────────
 
     private CheckResultJpaEntity toJpaEntity(CheckResult cr) {
         CheckResultJpaEntity entity = CheckResultJpaEntity.builder()
-                .id(cr.getId())
-                .documentId(cr.getDocumentId())
-                .passed(cr.isPassed())
-                .totalViolations(cr.getTotalViolations())
-                .checkedAt(cr.getCheckedAt())
-                .checkedBy(cr.getCheckedBy())
-                .summary(cr.getSummary())
-                .build();
+                .id(cr.getId()).documentId(cr.getDocumentId()).passed(cr.isPassed())
+                .totalViolations(cr.getTotalViolations()).checkedAt(cr.getCheckedAt())
+                .checkedBy(cr.getCheckedBy()).summary(cr.getSummary()).build();
 
         List<ViolationJpaEntity> violationEntities = cr.getViolations().stream()
                 .map(v -> ViolationJpaEntity.builder()
-                        .id(v.getId())
-                        .ruleCode(v.getRuleCode())
-                        .severity(v.getSeverity())
-                        .message(v.getMessage())
-                        .location(v.getLocation())
-                        .suggestion(v.getSuggestion())
-                        .checkResult(entity)
-                        .build())
+                        .id(v.getId()).ruleCode(v.getRuleCode())
+                        .description(v.getDescription()).severity(v.getSeverity())
+                        .pageNumber(v.getPageNumber()).lineNumber(v.getLineNumber())
+                        .suggestion(v.getSuggestion()).ruleReference(v.getRuleReference())
+                        .checkResult(entity).build())
                 .collect(Collectors.toList());
 
         entity.setViolations(violationEntities);
@@ -81,24 +69,17 @@ public class CheckResultRepositoryAdapter implements CheckResultRepository {
     private CheckResult toDomain(CheckResultJpaEntity entity) {
         List<Violation> violations = entity.getViolations().stream()
                 .map(v -> Violation.builder()
-                        .id(v.getId())
-                        .ruleCode(v.getRuleCode())
-                        .severity(v.getSeverity())
-                        .message(v.getMessage())
-                        .location(v.getLocation())
-                        .suggestion(v.getSuggestion())
+                        .id(v.getId()).ruleCode(v.getRuleCode())
+                        .description(v.getDescription()).severity(v.getSeverity())
+                        .pageNumber(v.getPageNumber()).lineNumber(v.getLineNumber())
+                        .suggestion(v.getSuggestion()).ruleReference(v.getRuleReference())
                         .build())
                 .collect(Collectors.toList());
 
         return CheckResult.builder()
-                .id(entity.getId())
-                .documentId(entity.getDocumentId())
-                .passed(entity.isPassed())
-                .totalViolations(entity.getTotalViolations())
-                .checkedAt(entity.getCheckedAt())
-                .checkedBy(entity.getCheckedBy())
-                .summary(entity.getSummary())
-                .violations(violations)
-                .build();
+                .id(entity.getId()).documentId(entity.getDocumentId())
+                .passed(entity.isPassed()).totalViolations(entity.getTotalViolations())
+                .checkedAt(entity.getCheckedAt()).checkedBy(entity.getCheckedBy())
+                .summary(entity.getSummary()).violations(violations).build();
     }
 }

@@ -2,6 +2,7 @@ package ru.normacontrol.application.usecase;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.normacontrol.application.dto.response.CheckResultResponse;
@@ -11,10 +12,7 @@ import ru.normacontrol.domain.entity.Document;
 import ru.normacontrol.domain.repository.CheckResultRepository;
 import ru.normacontrol.domain.repository.DocumentRepository;
 import ru.normacontrol.domain.service.GostRuleEngine;
-import ru.normacontrol.domain.service.GostRuleEngine.DocumentMetadata;
 import ru.normacontrol.infrastructure.minio.MinioStorageService;
-import ru.normacontrol.infrastructure.parser.DocumentParser;
-import ru.normacontrol.infrastructure.parser.DocumentParser.ParsedDocument;
 
 import java.io.InputStream;
 import java.util.UUID;
@@ -31,12 +29,15 @@ public class CheckDocumentUseCase {
     private final DocumentRepository documentRepository;
     private final CheckResultRepository checkResultRepository;
     private final MinioStorageService storageService;
-    private final DocumentParser documentParser;
     private final GostRuleEngine gostRuleEngine;
     private final CheckResultMapper checkResultMapper;
 
     /**
      * Выполнить проверку документа.
+     *
+     * @param documentId UUID документа
+     * @param checkedBy  UUID пользователя, инициировавшего проверку
+     * @return результат проверки
      */
     @Transactional
     public CheckResultResponse executeCheck(UUID documentId, UUID checkedBy) {
@@ -52,25 +53,26 @@ public class CheckDocumentUseCase {
             // Скачивание файла из MinIO
             InputStream fileStream = storageService.downloadFile(document.getStorageKey());
 
-            // Парсинг документа (DOCX или PDF)
-            ParsedDocument parsed = documentParser.parse(fileStream, document.getContentType());
+            // Открываем как XWPFDocument (DOCX)
+            XWPFDocument xwpfDocument;
+            String contentType = document.getContentType();
+            if (contentType != null && (contentType.contains("wordprocessingml")
+                    || contentType.contains("msword"))) {
+                xwpfDocument = new XWPFDocument(fileStream);
+            } else if (contentType != null && contentType.contains("pdf")) {
+                // PDF пока не поддерживается напрямую движком ГОСТ
+                // (нужна конвертация PDF → DOCX или отдельный парсер)
+                throw new UnsupportedOperationException(
+                        "Проверка ГОСТ для PDF в разработке. Загрузите документ в формате DOCX.");
+            } else {
+                throw new IllegalArgumentException("Неподдерживаемый формат: " + contentType);
+            }
 
-            // Формирование метаданных для проверки
-            DocumentMetadata metadata = new DocumentMetadata(
-                    parsed.fontSize(),
-                    parsed.fontName(),
-                    parsed.marginLeft(),
-                    parsed.marginRight(),
-                    parsed.marginTop(),
-                    parsed.marginBottom(),
-                    parsed.lineSpacing(),
-                    parsed.pageCount(),
-                    parsed.hasPageNumbers()
-            );
-
-            // Запуск GostRuleEngine
-            CheckResult result = gostRuleEngine.check(
-                    parsed.text(), metadata, documentId, checkedBy);
+            // Запуск GostRuleEngine (Chain of Responsibility)
+            CheckResult result;
+            try (xwpfDocument) {
+                result = gostRuleEngine.check(xwpfDocument, documentId, checkedBy);
+            }
 
             // Сохранение результата
             checkResultRepository.save(result);
@@ -94,6 +96,9 @@ public class CheckDocumentUseCase {
 
     /**
      * Получить последний результат проверки документа.
+     *
+     * @param documentId UUID документа
+     * @return последний результат проверки
      */
     @Transactional(readOnly = true)
     public CheckResultResponse getLatestResult(UUID documentId) {

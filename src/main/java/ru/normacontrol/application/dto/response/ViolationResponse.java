@@ -13,8 +13,10 @@ import java.util.UUID;
 public class ViolationResponse {
     private UUID id;
     private String ruleCode;
+    private String description;
     private String severity;
-    private String message;
-    private String location;
+    private int pageNumber;
+    private int lineNumber;
     private String suggestion;
+    private String ruleReference;
 }

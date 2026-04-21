@@ -21,18 +21,24 @@ public class ViolationJpaEntity {
     @Column(name = "rule_code", nullable = false, length = 50)
     private String ruleCode;
 
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String description;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private ViolationSeverity severity;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
-    private String message;
+    @Column(name = "page_number")
+    private int pageNumber;
 
-    @Column(length = 255)
-    private String location;
+    @Column(name = "line_number")
+    private int lineNumber;
 
     @Column(columnDefinition = "TEXT")
     private String suggestion;
+
+    @Column(name = "rule_reference", length = 255)
+    private String ruleReference;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "check_result_id", nullable = false)

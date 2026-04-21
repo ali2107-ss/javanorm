@@ -57,21 +57,29 @@ databaseChangeLog:
                   constraints:
                     nullable: false
               - column:
+                  name: description
+                  type: TEXT
+                  constraints:
+                    nullable: false
+              - column:
                   name: severity
                   type: VARCHAR(20)
                   constraints:
                     nullable: false
               - column:
-                  name: message
-                  type: TEXT
-                  constraints:
-                    nullable: false
+                  name: page_number
+                  type: INT
+                  defaultValueNumeric: 0
               - column:
-                  name: location
-                  type: VARCHAR(255)
+                  name: line_number
+                  type: INT
+                  defaultValueNumeric: 0
               - column:
                   name: suggestion
                   type: TEXT
+              - column:
+                  name: rule_reference
+                  type: VARCHAR(255)
         - addForeignKeyConstraint:
             baseTableName: check_results
             baseColumnNames: document_id
