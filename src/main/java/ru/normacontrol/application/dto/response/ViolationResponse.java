@@ -18,5 +18,6 @@ public class ViolationResponse {
     private int pageNumber;
     private int lineNumber;
     private String suggestion;
+    private String aiSuggestion;
     private String ruleReference;
 }

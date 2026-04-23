@@ -16,6 +16,8 @@ import ru.normacontrol.domain.service.GostRuleEngine;
 import ru.normacontrol.infrastructure.messaging.CheckEventPublisher;
 import ru.normacontrol.infrastructure.minio.MinioStorageService;
 import ru.normacontrol.infrastructure.websocket.ProgressPublisher;
+import ru.normacontrol.infrastructure.ai.AiRecommendationService;
+import ru.normacontrol.domain.enums.ViolationSeverity;
 
 import java.io.InputStream;
 import java.util.List;
@@ -37,6 +39,7 @@ public class CheckDocumentUseCase {
     private final MinioStorageService storageService;
     private final GostRuleEngine gostRuleEngine;
     private final CheckResultMapper checkResultMapper;
+    private final AiRecommendationService aiRecommendationService;
     
     private final ProgressPublisher progressPublisher;
     private final CheckEventPublisher checkEventPublisher;
@@ -81,6 +84,23 @@ public class CheckDocumentUseCase {
             CheckResult result;
             try (xwpfDocument) {
                 result = gostRuleEngine.check(xwpfDocument, documentId, checkedBy);
+            }
+
+            // ШАГ 3.5: AI рекомендации для CRITICAL
+            long criticalCount = result.getViolations().stream()
+                    .filter(v -> v.getSeverity() == ViolationSeverity.CRITICAL)
+                    .count();
+            if (criticalCount > 0) {
+                progressPublisher.publishProgress(documentId, 75, "AI_ANALYSIS", 
+                        "Генерирую AI-рекомендации для " + criticalCount + " нарушений...");
+                
+                List<CompletableFuture<Void>> aiFutures = result.getViolations().stream()
+                        .filter(v -> v.getSeverity() == ViolationSeverity.CRITICAL)
+                        .map(v -> aiRecommendationService.generateRecommendation(v, "Не указан")
+                                .thenAccept(suggestion -> v.setAiSuggestion(suggestion)))
+                        .collect(Collectors.toList());
+                
+                CompletableFuture.allOf(aiFutures.toArray(new CompletableFuture[0])).join();
             }
 
             // ШАГ 4: Генерация отчёта

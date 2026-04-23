@@ -58,7 +58,8 @@ public class CheckResultRepositoryAdapter implements CheckResultRepository {
                         .id(v.getId()).ruleCode(v.getRuleCode())
                         .description(v.getDescription()).severity(v.getSeverity())
                         .pageNumber(v.getPageNumber()).lineNumber(v.getLineNumber())
-                        .suggestion(v.getSuggestion()).ruleReference(v.getRuleReference())
+                        .suggestion(v.getSuggestion()).aiSuggestion(v.getAiSuggestion())
+                        .ruleReference(v.getRuleReference())
                         .checkResult(entity).build())
                 .collect(Collectors.toList());
 
@@ -72,7 +73,8 @@ public class CheckResultRepositoryAdapter implements CheckResultRepository {
                         .id(v.getId()).ruleCode(v.getRuleCode())
                         .description(v.getDescription()).severity(v.getSeverity())
                         .pageNumber(v.getPageNumber()).lineNumber(v.getLineNumber())
-                        .suggestion(v.getSuggestion()).ruleReference(v.getRuleReference())
+                        .suggestion(v.getSuggestion()).aiSuggestion(v.getAiSuggestion())
+                        .ruleReference(v.getRuleReference())
                         .build())
                 .collect(Collectors.toList());
 

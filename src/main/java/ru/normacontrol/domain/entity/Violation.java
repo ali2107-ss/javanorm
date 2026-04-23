@@ -40,6 +40,9 @@ public class Violation {
     /** Рекомендация по исправлению. */
     private String suggestion;
 
+    /** Умная рекомендация от AI. */
+    private String aiSuggestion;
+
     /** Ссылка на пункт ГОСТ 19.201-78 (например, «п.2.1», «п.2.4.1»). */
     private String ruleReference;
 }

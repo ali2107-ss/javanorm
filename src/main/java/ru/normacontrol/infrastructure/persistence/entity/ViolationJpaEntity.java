@@ -37,6 +37,9 @@ public class ViolationJpaEntity {
     @Column(columnDefinition = "TEXT")
     private String suggestion;
 
+    @Column(name = "ai_suggestion", columnDefinition = "TEXT")
+    private String aiSuggestion;
+
     @Column(name = "rule_reference", length = 255)
     private String ruleReference;
 
