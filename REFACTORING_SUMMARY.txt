@@ -1,0 +1,373 @@
+/**
+ * ═══════════════════════════════════════════════════════════════════════════
+ *  NORMACONTROL: REFACTORING UNDER DESIGN PATTERNS
+ *  НормаКонтроль: Рефакторинг под классические паттерны проектирования
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
+ * АРХИТЕКТУРА ПРОЕКТА ПОСЛЕ РЕФАКТОРИНГА
+ * 
+ * 📦 ПАТТЕРН 1: STRATEGY (Стратегия)
+ * ─────────────────────────────────────────────────────────────────────────
+ * 
+ * Пакет: ru.normacontrol.domain.checker.strategy
+ * 
+ * Интерфейс:
+ *   ├─ CheckStrategy
+ *   │  ├─ getCode() : String              // "STRUCT", "FMT", "TBL" и т.д.
+ *   │  ├─ getName() : String              // "Проверка структуры"
+ *   │  ├─ isEnabled() : boolean           // Включена ли стратегия
+ *   │  ├─ getOrder() : int                // Приоритет выполнения
+ *   │  └─ execute(document) : List<Violation>  // Выполнить проверку
+ * 
+ * Реализации:
+ *   ├─ StructureCheckStrategy (order=10)   // П.2 ГОСТ 19.201-78 - структура
+ *   ├─ FormattingCheckStrategy (order=20)  // П.1.3 - форматирование
+ *   ├─ TablesCheckStrategy (order=30)      // П.4.4 ГОСТ 2.105-95 - таблицы
+ *   ├─ FiguresCheckStrategy (order=40)     // П.4.3 ГОСТ 2.105-95 - рисунки
+ *   ├─ LanguageCheckStrategy (order=50)    // П.1.4 ГОСТ 19.201-78 - язык
+ *   └─ ReferencesCheckStrategy (order=60)  // П.4.5 ГОСТ 2.105-95 - литература
+ * 
+ * Использование в GostRuleEngine:
+ *   1. Spring инжектирует List<CheckStrategy>
+ *   2. Фильтруем isEnabled() == true
+ *   3. Сортируем по getOrder()
+ *   4. Итерируем и вызываем execute() для каждой
+ *   5. Агрегируем нарушения в CheckResult
+ * 
+ * ✅ SOLID:
+ *   ✓ Open/Closed   - новые стратегии не меняют GostRuleEngine
+ *   ✓ Liskov        - все стратегии взаимозаменяемы
+ *   ✓ Interface Seg. - каждая стратегия отвечает за одно
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * 📦 ПАТТЕРН 2: CHAIN OF RESPONSIBILITY (Цепочка ответственности)
+ * ─────────────────────────────────────────────────────────────────────────
+ * 
+ * Пакет: ru.normacontrol.infrastructure.parser
+ * 
+ * Интерфейс:
+ *   ├─ DocumentParser
+ *   │  ├─ supports(type: DocumentType) : boolean
+ *   │  ├─ parse(stream: InputStream) : ParsedDocument
+ *   │  ├─ getOrder() : int
+ *   │  └─ getName() : String
+ * 
+ * Поддерживаемые типы (DocumentType):
+ *   ├─ DOCX (.docx)       // Apache POI (order=10)
+ *   ├─ PDF (.pdf)         // Apache PDFBox (order=20)
+ *   ├─ MD (.md)           // Markdown (order=30)
+ *   └─ TXT (.txt)         // Plain text (order=100, fallback)
+ * 
+ * Результат парсинга (ParsedDocument):
+ *   ├─ fullText : String                    // Полный текст
+ *   ├─ sections : List<ParsedSection>       // Разделы с заголовками
+ *   ├─ tables : List<ParsedTable>           // Таблицы с метаданными
+ *   ├─ figureCaptions : List<String>        // Подписи рисунков
+ *   ├─ metadata : Map<String, String>       // Шрифт, поля, кодировка
+ *   ├─ documentType : DocumentType          // Тип документа
+ *   └─ parseErrorMessage : String           // Ошибка (if any)
+ * 
+ * Цепочка парсеров (DocumentParserChain):
+ *   1. Получить List<DocumentParser> от Spring
+ *   2. Отсортировать по getOrder()
+ *   3. При вызове parse(stream, type):
+ *      a) Итерировать по парсерам в порядке
+ *      b) Вызвать supports(type) для каждого
+ *      c) Первый с supports()=true выполняет parse()
+ *      d) Если никто не поддерживает → UnsupportedDocumentTypeException
+ * 
+ * ✅ SOLID:
+ *   ✓ Open/Closed   - новые парсеры добавляются без изменения цепи
+ *   ✓ Single Respons - каждый парсер отвечает за свой формат
+ *   ✓ Interface Seg. - каждый парсер реализует одно
+ *   ✓ Dependency Inv - цепь зависит от абстракции DocumentParser
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * 📦 ПАТТЕРН 3: BUILDER (Строитель)
+ * ─────────────────────────────────────────────────────────────────────────
+ * 
+ * Пакет: ru.normacontrol.application.builder
+ * 
+ * Builder:
+ *   ├─ CheckReportBuilder
+ *   │  ├─ withDocument(doc) → this
+ *   │  ├─ withCheckResult(result) → this
+ *   │  ├─ withAiRecommendations(map) → this
+ *   │  ├─ withAiRecommendation(code, text) → this
+ *   │  ├─ withComparisonResult(obj) → this
+ *   │  ├─ withReportGeneratedAt(time) → this
+ *   │  ├─ withReportVersion(version) → this
+ *   │  ├─ withCustomMetadata(map) → this
+ *   │  ├─ addMetadata(key, value) → this
+ *   │  └─ build() → CheckReportData
+ * 
+ * Результат (CheckReportData):
+ *   ├─ document : Document                           // Исходный документ
+ *   ├─ checkResult : CheckResult                     // Результаты проверки
+ *   ├─ aiRecommendations : Map<String, String>       // AI советы
+ *   ├─ comparisonResult : Object                     // Результат сравнения
+ *   ├─ reportGeneratedAt : LocalDateTime             // Время генерации
+ *   ├─ reportVersion : String                        // Версия формата
+ *   └─ customMetadata : Map<String, Object>          // Доп. данные
+ * 
+ * Использование:
+ *   CheckReportData report = new CheckReportBuilder()
+ *       .withDocument(doc)
+ *       .withCheckResult(result)
+ *       .withAiRecommendations(aiRecs)
+ *       .build();
+ * 
+ * ✅ SOLID:
+ *   ✓ Single Respons - builder отвечает только за построение
+ *   ✓ Interface Seg. - fluent interface с методами цепования
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * 📦 ПАТТЕРН 4: OBSERVER (Наблюдатель)
+ * ─────────────────────────────────────────────────────────────────────────
+ * 
+ * Пакет: ru.normacontrol.domain.event
+ * 
+ * События (Domain Events):
+ *   ├─ DomainEvent (интерфейс)
+ *   │  ├─ getOccurredAt() : LocalDateTime
+ *   │  └─ getEventName() : String
+ *   │
+ *   ├─ DocumentUploadedEvent
+ *   │  ├─ documentId : UUID
+ *   │  ├─ userId : UUID
+ *   │  ├─ fileName : String
+ *   │  └─ fileSize : long
+ *   │
+ *   ├─ CheckStartedEvent
+ *   │  ├─ documentId : UUID
+ *   │  ├─ userId : UUID
+ *   │  └─ ruleSetName : String
+ *   │
+ *   ├─ CheckCompletedEvent
+ *   │  ├─ documentId : UUID
+ *   │  ├─ totalViolations : int
+ *   │  ├─ criticalViolations : int
+ *   │  ├─ passed : boolean
+ *   │  └─ summary : String
+ *   │
+ *   └─ DocumentDeletedEvent
+ *      ├─ documentId : UUID
+ *      ├─ userId : UUID
+ *      └─ fileName : String
+ * 
+ * Издатель (Publisher):
+ *   └─ DomainEventPublisher (@Component)
+ *      ├─ publish(event) → void
+ *      └─ publishAll(events) → void
+ *          └─ использует Spring ApplicationEventPublisher
+ * 
+ * Слушатели (Listeners):
+ *   ├─ AuditEventListener (@EventListener)
+ *   │  ├─ onDocumentUploaded()      // Логирование в audit_log
+ *   │  ├─ onCheckStarted()
+ *   │  ├─ onCheckCompleted()
+ *   │  └─ onDocumentDeleted()
+ *   │
+ *   ├─ MetricsEventListener (@EventListener)
+ *   │  ├─ onCheckCompleted()        // Обновление Micrometer счётчиков
+ *   │  └─ onDocumentUploaded()
+ *   │
+ *   └─ NotificationEventListener (@EventListener)
+ *      ├─ onCheckCompleted()         // WebSocket, Email, SMS уведомления
+ *      └─ onDocumentUploaded()
+ * 
+ * Использование:
+ *   // В UseCase или сущности:
+ *   eventPublisher.publish(new DocumentUploadedEvent(...));
+ *   
+ *   // Слушатели получают событие автоматически:
+ *   @Component
+ *   public class AuditListener {
+ *       @EventListener
+ *       public void handle(DocumentUploadedEvent event) { ... }
+ *   }
+ * 
+ * ✅ SOLID:
+ *   ✓ Open/Closed   - новые слушатели добавляются без изменения издателя
+ *   ✓ Single Respons - каждый слушатель отвечает за одно действие
+ *   ✓ Dependency Inv - зависимость от Spring ApplicationEventPublisher
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * 📚 JAVADOC ДОКУМЕНТАЦИЯ
+ * ─────────────────────────────────────────────────────────────────────────
+ * 
+ * Обновлены классы в domain и application пакетах:
+ * 
+ * Domain Layer:
+ *   ✓ Document.java
+ *     • Жизненный цикл документа (UPLOADED → QUEUED → CHECKING → CHECKED)
+ *     • Методы управления состоянием (enqueue, startChecking, markChecked, softDelete)
+ *     • Публикация событий (DocumentDeletedEvent)
+ * 
+ *   ✓ CheckResult.java
+ *     • Правило прохождения проверки (нет CRITICAL → PASSED)
+ *     • Методы добавления нарушений (addViolation)
+ *     • Вычисление статуса (evaluate)
+ * 
+ *   ✓ Violation.java
+ *     • Коды нарушений по стратегиям (STRUCT-*, FMT-*, TBL-*, FIG-*, LANG-*, REF-*)
+ *     • Уровни критичности (CRITICAL, WARNING, INFO)
+ *     • Ссылки на пункты ГОСТ (п.2.1, п.2.4.5, п.4.1 и т.д.)
+ * 
+ * Strategy Layer:
+ *   ✓ CheckStrategy.java
+ *     • Интерфейс и особенности реализации
+ *     • Методы включения/выключения и приоритет
+ *     • Обработка ошибок
+ * 
+ *   ✓ Все реализации стратегий (StructureCheckStrategy, etc.)
+ *     • Проверяемые элементы
+ *     • Коды нарушений и ссылки на ГОСТ
+ * 
+ * Infrastructure Layer:
+ *   ✓ DocumentParser.java
+ *     • Паттерн Chain of Responsibility
+ *     • Методы supports() и parse()
+ * 
+ *   ✓ DocumentParserChain.java
+ *     • Алгоритм цепочки
+ *     • Обработка ошибок
+ * 
+ *   ✓ ParsedDocument.java
+ *     • Структура результата парсинга
+ *     • Вспомогательные record классы
+ * 
+ * Application Layer:
+ *   ✓ CheckReportBuilder.java
+ *     • Паттерн Builder
+ *     • Методы цепирования (fluent interface)
+ *     • Проверка обязательных полей
+ * 
+ *   ✓ CheckReportData.java
+ *     • Структура отчёта
+ *     • Вспомогательные методы
+ * 
+ * Event Layer:
+ *   ✓ DomainEvents.java
+ *     • Интерфейс DomainEvent
+ *     • Все четыре типа событий с примерами
+ * 
+ *   ✓ DomainEventPublisher.java
+ *     • Публикация единичных и пакетных событий
+ * 
+ *   ✓ EventListeners.java
+ *     • Три типа слушателей (Audit, Metrics, Notification)
+ *     • TODO комментарии для внедрения
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * ✅ ПРОВЕРКА SOLID ПРИНЦИПОВ
+ * ─────────────────────────────────────────────────────────────────────────
+ * 
+ * S - Single Responsibility (Единственная ответственность)
+ *   ✓ CheckStrategy - отвечает ТОЛЬКО за свою группу проверок
+ *   ✓ DocumentParser - отвечает ТОЛЬКО за парсинг своего типа
+ *   ✓ AuditEventListener - отвечает ТОЛЬКО за логирование
+ *   ✓ CheckReportBuilder - отвечает ТОЛЬКО за построение отчёта
+ *   ✓ CheckResult.evaluate() - вычисляет ТОЛЬКО статус прохождения
+ * 
+ * O - Open/Closed (Открыто для расширения, закрыто для изменения)
+ *   ✓ GostRuleEngine не меняется при добавлении новой CheckStrategy
+ *   ✓ DocumentParserChain не меняется при добавлении нового парсера
+ *   ✓ DomainEventPublisher не меняется при добавлении нового слушателя
+ *   ✓ Spring автоматически инжектирует новые реализации
+ * 
+ * L - Liskov Substitution (Подстановка Лисков)
+ *   ✓ Все CheckStrategy взаимозаменяемы - могут быть включены/выключены
+ *   ✓ Все DocumentParser взаимозаменяемы - поддерживают один интерфейс
+ *   ✓ Все DomainEvent обрабатываются одинаково издателем
+ *   ✓ Все реализации можно заменить на другие - контракт сохраняется
+ * 
+ * I - Interface Segregation (Разделение интерфейсов)
+ *   ✓ CheckStrategy имеет ТОЛЬКО методы проверки (не управления)
+ *   ✓ DocumentParser имеет ТОЛЬКО методы парсинга (не преобразования)
+ *   ✓ DomainEvent имеет ТОЛЬКО методы получения данных события
+ *   ✓ Клиенты не зависят от методов, которые не используют
+ * 
+ * D - Dependency Inversion (Инверсия зависимостей)
+ *   ✓ GostRuleEngine зависит от CheckStrategy (абстракция), не от реализаций
+ *   ✓ DocumentParserChain зависит от DocumentParser (абстракция)
+ *   ✓ DomainEventPublisher зависит от DomainEvent (абстракция)
+ *   ✓ UseCase зависит от интерфейсов репозиториев, не от JPA
+ *   ✓ Все зависимости инжектируются через Spring DI
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * 📋 ФАЙЛЫ, СОЗДАННЫЕ/ОБНОВЛЁННЫЕ
+ * ─────────────────────────────────────────────────────────────────────────
+ * 
+ * Domain/Checker/Strategy:
+ *   1. domain/checker/strategy/CheckStrategy.java           (new)
+ *   2. domain/checker/strategy/StructureCheckStrategy.java  (new)
+ *   3. domain/checker/strategy/FormattingCheckStrategy.java (new)
+ *   4. domain/checker/strategy/TablesCheckStrategy.java     (new)
+ *   5. domain/checker/strategy/FiguresCheckStrategy.java    (new)
+ *   6. domain/checker/strategy/LanguageCheckStrategy.java   (new)
+ *   7. domain/checker/strategy/ReferencesCheckStrategy.java (new)
+ * 
+ * Domain/Service:
+ *   8. domain/service/GostRuleEngine.java                   (updated - Strategy pattern)
+ * 
+ * Infrastructure/Parser:
+ *   9. infrastructure/parser/BaseDocumentParser.java        (new - interface)
+ *   10. infrastructure/parser/DocumentType.java            (new - enum)
+ *   11. infrastructure/parser/ParsedDocument.java          (new - record)
+ *   12. infrastructure/parser/DocumentParserChain.java     (new - Chain of Resp.)
+ * 
+ * Application/Builder:
+ *   13. application/builder/CheckReportBuilder.java         (new)
+ *   14. application/builder/CheckReportData.java            (new)
+ * 
+ * Domain/Event:
+ *   15. domain/event/DomainEvents.java                      (new)
+ *   16. domain/event/DomainEventPublisher.java             (new)
+ *   17. domain/event/EventListeners.java                   (new)
+ * 
+ * Domain/Entity (Updated with Javadoc):
+ *   18. domain/entity/Document.java                        (updated - full Javadoc)
+ *   19. domain/entity/CheckResult.java                     (updated - full Javadoc)
+ *   20. domain/entity/Violation.java                       (updated - full Javadoc)
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════
+ * 
+ * 🎯 СЛЕДУЮЩИЕ ШАГИ
+ * ─────────────────────────────────────────────────────────────────────────
+ * 
+ * 1. Обновить CheckDocumentUseCase для использования новых паттернов:
+ *    - Использовать DocumentParserChain вместо DocumentParser
+ *    - Опубликовать CheckCompletedEvent при завершении
+ *    - Использовать CheckReportBuilder для формирования отчётов
+ * 
+ * 2. Создать реализации DocumentParser для каждого типа:
+ *    - DocxDocumentParser (extends BaseDocumentParser)
+ *    - PdfDocumentParser (extends BaseDocumentParser)
+ *    - TxtDocumentParser (extends BaseDocumentParser)
+ *    - MdDocumentParser (extends BaseDocumentParser)
+ * 
+ * 3. Реализовать слушатели событий:
+ *    - Завершить TODO методы в AuditEventListener
+ *    - Завершить TODO методы в MetricsEventListener
+ *    - Завершить TODO методы в NotificationEventListener
+ * 
+ * 4. Добавить Javadoc к UseCase классам:
+ *    - CheckDocumentUseCase
+ *    - DocumentUseCase
+ *    - CompareDocumentsUseCase
+ *    - и т.д.
+ * 
+ * 5. Обновить конфигурацию Application.yml:
+ *    - check.strategy.structure.enabled = true
+ *    - check.strategy.formatting.enabled = true
+ *    - и т.д. для каждой стратегии
+ * 
+ * ═══════════════════════════════════════════════════════════════════════════
+ */

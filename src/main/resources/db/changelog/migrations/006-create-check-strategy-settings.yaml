@@ -1,0 +1,50 @@
+databaseChangeLog:
+  - changeSet:
+      id: 006-create-check-strategy-settings
+      author: normacontrol
+      changes:
+        - createTable:
+            tableName: check_strategy_settings
+            columns:
+              - column:
+                  name: strategy_code
+                  type: VARCHAR(32)
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: enabled
+                  type: BOOLEAN
+                  defaultValueBoolean: true
+                  constraints:
+                    nullable: false
+        - insert:
+            tableName: check_strategy_settings
+            columns:
+              - column: { name: strategy_code, value: STRUCT }
+              - column: { name: enabled, valueBoolean: true }
+        - insert:
+            tableName: check_strategy_settings
+            columns:
+              - column: { name: strategy_code, value: FMT }
+              - column: { name: enabled, valueBoolean: true }
+        - insert:
+            tableName: check_strategy_settings
+            columns:
+              - column: { name: strategy_code, value: TBL }
+              - column: { name: enabled, valueBoolean: true }
+        - insert:
+            tableName: check_strategy_settings
+            columns:
+              - column: { name: strategy_code, value: FIG }
+              - column: { name: enabled, valueBoolean: true }
+        - insert:
+            tableName: check_strategy_settings
+            columns:
+              - column: { name: strategy_code, value: LANG }
+              - column: { name: enabled, valueBoolean: true }
+        - insert:
+            tableName: check_strategy_settings
+            columns:
+              - column: { name: strategy_code, value: REF }
+              - column: { name: enabled, valueBoolean: true }

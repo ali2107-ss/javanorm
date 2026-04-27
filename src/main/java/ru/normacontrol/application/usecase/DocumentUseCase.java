@@ -9,49 +9,45 @@ import ru.normacontrol.application.dto.response.DocumentResponse;
 import ru.normacontrol.application.mapper.DocumentMapper;
 import ru.normacontrol.domain.entity.Document;
 import ru.normacontrol.domain.enums.DocumentStatus;
-import ru.normacontrol.domain.repository.DocumentRepository;
+import ru.normacontrol.domain.event.DocumentUploadedEvent;
+import ru.normacontrol.domain.event.DomainEventPublisher;
+import ru.normacontrol.domain.repository.ReadDocumentRepository;
+import ru.normacontrol.domain.repository.WriteDocumentRepository;
 import ru.normacontrol.infrastructure.kafka.producer.DocumentCheckProducer;
 import ru.normacontrol.infrastructure.minio.MinioStorageService;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
- * Use Case: Операции с документами (загрузка, получение, удаление, постановка в очередь).
+ * Use case for document upload, retrieval and soft deletion.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class DocumentUseCase {
 
-    private final DocumentRepository documentRepository;
+    private final ReadDocumentRepository readDocumentRepository;
+    private final WriteDocumentRepository writeDocumentRepository;
     private final MinioStorageService storageService;
     private final DocumentCheckProducer checkProducer;
     private final DocumentMapper documentMapper;
+    private final DomainEventPublisher domainEventPublisher;
 
     /**
-     * Загрузить документ и поставить его в очередь на проверку.
+     * Upload a document and enqueue it for checking.
+     *
+     * @param file uploaded file
+     * @param ownerId document owner
+     * @return created document DTO
      */
     @Transactional
     public DocumentResponse uploadAndCheck(MultipartFile file, UUID ownerId) {
-        // Валидация типа файла
         String contentType = file.getContentType();
-        if (contentType == null || (!contentType.contains("pdf")
-                && !contentType.contains("wordprocessingml")
-                && !contentType.contains("msword"))) {
-            throw new IllegalArgumentException(
-                    "Поддерживаются только файлы PDF и DOCX");
-        }
-
-        // Генерация уникального ключа хранилища
         String storageKey = UUID.randomUUID() + "_" + file.getOriginalFilename();
-
-        // Загрузка в MinIO
         storageService.uploadFile(storageKey, file);
 
-        // Создание записи документа
         Document document = Document.builder()
                 .id(UUID.randomUUID())
                 .originalFilename(file.getOriginalFilename())
@@ -65,54 +61,62 @@ public class DocumentUseCase {
                 .build();
 
         document.enqueue();
-        document = documentRepository.save(document);
+        Document saved = writeDocumentRepository.save(document);
+        checkProducer.sendCheckRequest(saved.getId(), ownerId);
+        domainEventPublisher.publish(new DocumentUploadedEvent(saved.getId(), ownerId, saved.getFileName()));
+        return documentMapper.toResponse(saved);
+    }
 
-        // Отправка в Kafka для асинхронной проверки
-        checkProducer.sendCheckRequest(document.getId(), ownerId);
-        log.info("Документ {} загружен и поставлен в очередь на проверку", document.getId());
-
+    /**
+     * Get a document by identifier.
+     *
+     * @param documentId document identifier
+     * @param requesterId requesting user
+     * @return document DTO
+     */
+    @Transactional(readOnly = true)
+    public DocumentResponse getById(UUID documentId, UUID requesterId) {
+        Document document = requireOwnedDocument(documentId, requesterId);
+        if (document.getStatus() == DocumentStatus.DELETED) {
+            throw new IllegalArgumentException("Документ удален: " + documentId);
+        }
         return documentMapper.toResponse(document);
     }
 
     /**
-     * Получить документ по ID.
-     */
-    @Transactional(readOnly = true)
-    public DocumentResponse getById(UUID documentId, UUID requesterId) {
-        Document doc = documentRepository.findById(documentId)
-                .orElseThrow(() -> new IllegalArgumentException("Документ не найден: " + documentId));
-
-        if (!doc.getOwnerId().equals(requesterId)) {
-            throw new SecurityException("Нет доступа к документу");
-        }
-
-        return documentMapper.toResponse(doc);
-    }
-
-    /**
-     * Получить все документы пользователя.
+     * Get all active documents for an owner.
+     *
+     * @param ownerId owner identifier
+     * @return owner documents
      */
     @Transactional(readOnly = true)
     public List<DocumentResponse> getByOwner(UUID ownerId) {
-        return documentRepository.findByOwnerId(ownerId).stream()
+        return readDocumentRepository.findByOwnerId(ownerId).stream()
+                .filter(document -> document.getStatus() != DocumentStatus.DELETED)
                 .map(documentMapper::toResponse)
-                .collect(Collectors.toList());
+                .toList();
     }
 
     /**
-     * Удалить документ.
+     * Soft-delete a document.
+     *
+     * @param documentId document identifier
+     * @param requesterId requesting user
      */
     @Transactional
     public void delete(UUID documentId, UUID requesterId) {
-        Document doc = documentRepository.findById(documentId)
-                .orElseThrow(() -> new IllegalArgumentException("Документ не найден: " + documentId));
+        Document document = requireOwnedDocument(documentId, requesterId);
+        domainEventPublisher.publish(document.softDelete(requesterId));
+        writeDocumentRepository.save(document);
+        log.info("Document {} soft-deleted by {}", documentId, requesterId);
+    }
 
-        if (!doc.getOwnerId().equals(requesterId)) {
+    private Document requireOwnedDocument(UUID documentId, UUID requesterId) {
+        Document document = readDocumentRepository.findById(documentId)
+                .orElseThrow(() -> new IllegalArgumentException("Документ не найден: " + documentId));
+        if (!document.getOwnerId().equals(requesterId)) {
             throw new SecurityException("Нет доступа к документу");
         }
-
-        storageService.deleteFile(doc.getStorageKey());
-        documentRepository.deleteById(documentId);
-        log.info("Документ {} удалён пользователем {}", documentId, requesterId);
+        return document;
     }
 }

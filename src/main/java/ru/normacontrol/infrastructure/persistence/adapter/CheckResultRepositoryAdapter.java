@@ -44,7 +44,7 @@ public class CheckResultRepositoryAdapter implements CheckResultRepository {
 
     @Override
     public Optional<CheckResult> findLatestByDocumentId(UUID documentId) {
-        return jpaRepository.findLatestByDocumentId(documentId).map(this::toDomain);
+        return jpaRepository.findFirstByDocumentIdOrderByCheckedAtDesc(documentId).map(this::toDomain);
     }
 
     private CheckResultJpaEntity toJpaEntity(CheckResult cr) {

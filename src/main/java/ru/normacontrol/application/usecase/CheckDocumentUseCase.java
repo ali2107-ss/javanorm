@@ -10,138 +10,106 @@ import ru.normacontrol.application.dto.response.CheckResultResponse;
 import ru.normacontrol.application.mapper.CheckResultMapper;
 import ru.normacontrol.domain.entity.CheckResult;
 import ru.normacontrol.domain.entity.Document;
+import ru.normacontrol.domain.enums.ViolationSeverity;
+import ru.normacontrol.domain.event.CheckStartedEvent;
+import ru.normacontrol.domain.event.DomainEventPublisher;
 import ru.normacontrol.domain.repository.CheckResultRepository;
-import ru.normacontrol.domain.repository.DocumentRepository;
+import ru.normacontrol.domain.repository.ReadDocumentRepository;
+import ru.normacontrol.domain.repository.WriteDocumentRepository;
 import ru.normacontrol.domain.service.GostRuleEngine;
+import ru.normacontrol.infrastructure.ai.AiRecommendationService;
 import ru.normacontrol.infrastructure.messaging.CheckEventPublisher;
 import ru.normacontrol.infrastructure.minio.MinioStorageService;
 import ru.normacontrol.infrastructure.websocket.ProgressPublisher;
-import ru.normacontrol.infrastructure.ai.AiRecommendationService;
-import ru.normacontrol.domain.enums.ViolationSeverity;
 
 import java.io.InputStream;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 /**
- * Use Case: Непосредственная проверка документа на соответствие ГОСТ 19.201-78.
- * Выполняется асинхронно в отдельном пуле потоков.
+ * Use case that performs a full document check.
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CheckDocumentUseCase {
 
-    private final DocumentRepository documentRepository;
+    private final ReadDocumentRepository readDocumentRepository;
+    private final WriteDocumentRepository writeDocumentRepository;
     private final CheckResultRepository checkResultRepository;
     private final MinioStorageService storageService;
     private final GostRuleEngine gostRuleEngine;
     private final CheckResultMapper checkResultMapper;
     private final AiRecommendationService aiRecommendationService;
-    
     private final ProgressPublisher progressPublisher;
     private final CheckEventPublisher checkEventPublisher;
+    private final DomainEventPublisher domainEventPublisher;
 
     /**
-     * Выполнить проверку документа асинхронно.
-     * Возвращает CompletableFuture, чтобы вызывающий Consumer мог дождаться результата
-     * и при необходимости инициировать Retry в Kafka при ошибке.
+     * Execute the check asynchronously.
      *
-     * @param documentId UUID документа
-     * @param checkedBy  UUID пользователя, инициировавшего проверку
-     * @return Future
+     * @param documentId document identifier
+     * @param checkedBy user who started the check
+     * @return completion future
      */
     @Async("checkExecutor")
     @Transactional
     public CompletableFuture<Void> executeCheck(UUID documentId, UUID checkedBy) {
-        log.info("Начало проверки документа (Async): {}", documentId);
-
-        Document document = documentRepository.findById(documentId)
+        Document document = readDocumentRepository.findById(documentId)
                 .orElseThrow(() -> new IllegalArgumentException("Документ не найден: " + documentId));
 
         document.startChecking();
-        documentRepository.save(document);
+        writeDocumentRepository.save(document);
+        domainEventPublisher.publish(new CheckStartedEvent(documentId, "GOST 19.201-78"));
 
-        try {
-            // ШАГ 1: Скачивание
-            progressPublisher.publishProgress(documentId, 10, "DOWNLOADING", "Скачивание файла из хранилища");
-            InputStream fileStream = storageService.downloadFile(document.getStorageKey());
+        try (InputStream fileStream = storageService.downloadFile(document.getStorageKey());
+             XWPFDocument xwpfDocument = new XWPFDocument(fileStream)) {
 
-            // ШАГ 2: Парсинг
-            progressPublisher.publishProgress(documentId, 30, "PARSING", "Чтение структуры и содержимого DOCX");
-            XWPFDocument xwpfDocument;
-            String contentType = document.getContentType();
-            if (contentType != null && (contentType.contains("wordprocessingml") || contentType.contains("msword"))) {
-                xwpfDocument = new XWPFDocument(fileStream);
-            } else {
-                throw new IllegalArgumentException("Поддерживается только формат DOCX.");
-            }
+            progressPublisher.publishProgress(documentId, 60, "CHECKING", "Проверка документа");
+            CheckResult result = gostRuleEngine.check(xwpfDocument, documentId, checkedBy);
 
-            // ШАГ 3: Проверка
-            progressPublisher.publishProgress(documentId, 60, "CHECKING", "Анализ документа движком ГОСТ 19.201-78");
-            CheckResult result;
-            try (xwpfDocument) {
-                result = gostRuleEngine.check(xwpfDocument, documentId, checkedBy);
-            }
-
-            // ШАГ 3.5: AI рекомендации для CRITICAL
             long criticalCount = result.getViolations().stream()
                     .filter(v -> v.getSeverity() == ViolationSeverity.CRITICAL)
                     .count();
             if (criticalCount > 0) {
-                progressPublisher.publishProgress(documentId, 75, "AI_ANALYSIS", 
-                        "Генерирую AI-рекомендации для " + criticalCount + " нарушений...");
-                
-                List<CompletableFuture<Void>> aiFutures = result.getViolations().stream()
+                List<CompletableFuture<Void>> futures = result.getViolations().stream()
                         .filter(v -> v.getSeverity() == ViolationSeverity.CRITICAL)
                         .map(v -> aiRecommendationService.generateRecommendation(v, "Не указан")
-                                .thenAccept(suggestion -> v.setAiSuggestion(suggestion)))
-                        .collect(Collectors.toList());
-                
-                CompletableFuture.allOf(aiFutures.toArray(new CompletableFuture[0])).join();
+                                .thenAccept(v::setAiSuggestion))
+                        .toList();
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
             }
 
-            // ШАГ 4: Генерация отчёта
-            progressPublisher.publishProgress(documentId, 85, "GENERATING_REPORT", "Сохранение результатов проверки");
             checkResultRepository.save(result);
             document.markChecked();
-            documentRepository.save(document);
+            writeDocumentRepository.save(document);
+            domainEventPublisher.publish(result.attachResult());
 
-            // ШАГ 5: Готово
-            progressPublisher.publishProgress(documentId, 100, "DONE", "Проверка успешно завершена");
-            
-            // Публикация события завершения в Kafka
-            List<String> violationCodes = result.getViolations().stream()
-                    .map(v -> v.getRuleCode())
-                    .collect(Collectors.toList());
-                    
-            // Оценка (условная логика: 100 минус штрафы)
-            int score = Math.max(0, 100 - (result.getTotalViolations() * 5));
-            
+            int score = result.calculateScore();
+            List<String> violationCodes = result.getViolations().stream().map(v -> v.getRuleCode()).toList();
             checkEventPublisher.publishCheckCompleted(documentId, score, result.isPassed(), violationCodes);
-            
-            log.info("Проверка документа {} завершена. Нарушений: {}", documentId, result.getTotalViolations());
+            progressPublisher.publishProgress(documentId, 100, "DONE", "Проверка завершена");
 
             return CompletableFuture.completedFuture(null);
-
-        } catch (Exception e) {
-            log.error("Ошибка при проверке документа {}: {}", documentId, e.getMessage(), e);
+        } catch (Exception ex) {
             document.markFailed();
-            documentRepository.save(document);
-            
-            progressPublisher.publishProgress(documentId, 0, "FAILED", "Ошибка при проверке: " + e.getMessage());
-            
-            // Пробрасываем исключение, чтобы Kafka Consumer мог сделать Retry
-            return CompletableFuture.failedFuture(new RuntimeException("Ошибка при проверке документа: " + e.getMessage(), e));
+            writeDocumentRepository.save(document);
+            progressPublisher.publishProgress(documentId, 0, "FAILED", "Ошибка при проверке: " + ex.getMessage());
+            return CompletableFuture.failedFuture(ex);
         }
     }
 
+    /**
+     * Get latest saved check result for the document.
+     *
+     * @param documentId document identifier
+     * @return latest result DTO
+     */
     @Transactional(readOnly = true)
     public CheckResultResponse getLatestResult(UUID documentId) {
         CheckResult result = checkResultRepository.findLatestByDocumentId(documentId)
-                .orElseThrow(() -> new IllegalArgumentException("Результат проверки не найден для документа: " + documentId));
+                .orElseThrow(() -> new IllegalArgumentException("Результат проверки не найден: " + documentId));
         return checkResultMapper.toResponse(result);
     }
 }
