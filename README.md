@@ -1,116 +1,69 @@
-# ПРОГРАММАНормаКонтроль
+# 🔍 НормаКонтроль
+> Java программа — автоматическая проверка документов по ГОСТ 19.201-78
 
-Система автоматической проверки документов на соответствие **ГОСТ 19.201-78** «Техническое задание. Требования к содержанию и оформлению».
+Технологии: Java 17 | Spring Boot 3.2 | PostgreSQL | Redis | Kafka | Docker
 
-## Архитектура
+## Что умеет программа
+- Загружает документы DOCX, PDF, TXT, MD
+- Проверяет по 6 группам правил ГОСТ 19.201-78
+- Показывает прогресс проверки в реальном времени через WebSocket
+- Генерирует AI-рекомендации по каждому нарушению
+- Сравнивает две версии документа и показывает, что исправили
+- Генерирует PDF-отчёт с детальными результатами
+- Ведёт журнал действий пользователей и системы
+- Предоставляет REST API с документацией Swagger UI
 
-Проект построен по принципу **Clean Architecture**:
-
-```
-src/main/java/ru/normacontrol/
-├── domain/                      # Доменный слой (ядро)
-│   ├── entity/                  # Сущности: User, Document, CheckResult, Violation, Role
-│   ├── enums/                   # Перечисления: RoleName, DocumentStatus, ViolationSeverity
-│   ├── repository/              # Порты репозиториев (интерфейсы)
-│   └── service/                 # GostRuleEngine — движок проверки ГОСТ
-│
-├── application/                 # Слой приложения
-│   ├── dto/                     # Request/Response DTO
-│   ├── mapper/                  # MapStruct маппинг
-│   └── usecase/                 # Use Cases: Auth, Document, CheckDocument, UserManagement
-│
-├── infrastructure/              # Инфраструктурный слой
-│   ├── persistence/             # JPA-сущности, Spring Data репозитории, адаптеры
-│   ├── kafka/                   # Kafka Producer/Consumer для очереди проверок
-│   ├── minio/                   # MinIO файловое хранилище
-│   ├── redis/                   # Redis конфигурация (кэширование)
-│   ├── security/                # JWT, OAuth2, Spring Security
-│   └── parser/                  # Apache POI (DOCX) + PDFBox (PDF)
-│
-└── presentation/                # Слой представления
-    ├── controller/              # REST API контроллеры
-    ├── advice/                  # Глобальный обработчик ошибок
-    └── config/                  # OpenAPI/Swagger конфигурация
-```
-
-## Стек технологий
-
-| Компонент           | Технология                        |
-|---------------------|-----------------------------------|
-| Язык                | Java 17+                          |
-| Фреймворк           | Spring Boot 3.2.5                 |
-| БД                  | PostgreSQL 16 + Liquibase         |
-| Кэш                | Redis 7                           |
-| Очередь             | Apache Kafka 3.7 (KRaft)          |
-| Хранилище файлов    | MinIO (S3-совместимое)            |
-| Безопасность        | Spring Security + JWT + OAuth2    |
-| Документация API    | SpringDoc OpenAPI 3.0 (Swagger)   |
-| Парсинг DOCX        | Apache POI 5.2.5                  |
-| Парсинг PDF         | Apache PDFBox 3.0.2               |
-| Маппинг             | MapStruct 1.5.5                   |
-| Утилиты             | Lombok                            |
-| Сборка              | Gradle 8.7                        |
-
-## Быстрый старт
-
-### 1. Запуск инфраструктуры
-
+## Запуск программы
 ```bash
+git clone https://github.com/idayatali/normacontrol
+cp .env.example .env
 docker-compose up -d
 ```
 
-### 2. Сборка и запуск приложения
+Программа запустится на `http://localhost:8080`  
+Swagger UI: `http://localhost:8080/api/swagger-ui`  
+Grafana: `http://localhost:3000`
 
-```bash
-./gradlew bootRun
+## Архитектура
+```mermaid
+graph TB
+  Client["REST клиент / Swagger UI"]
+  Client --> API["Spring Boot API :8080"]
+  API --> PG["PostgreSQL :5432"]
+  API --> Redis["Redis :6379"]
+  API --> Kafka["Kafka :9092"]
+  Kafka --> Worker["Async Worker"]
+  Worker --> Engine["GostRuleEngine"]
+  Worker --> AI["Anthropic AI API"]
+  Worker --> MinIO["MinIO хранилище :9000"]
+  API --> Prometheus["Prometheus :9090"]
+  Prometheus --> Grafana["Grafana :3000"]
 ```
 
-### 3. Swagger UI
+## Все API эндпоинты
+```text
+POST   /api/v1/auth/register          — регистрация
+POST   /api/v1/auth/login             — вход, получить JWT
+POST   /api/v1/auth/refresh           — обновить токен
+POST   /api/v1/auth/logout            — выход
 
-Открыть в браузере: **http://localhost:8081/api/docs**
+POST   /api/v1/documents              — загрузить документ
+GET    /api/v1/documents              — список документов
+GET    /api/v1/documents/{id}         — статус документа
+DELETE /api/v1/documents/{id}         — удалить документ
+GET    /api/v1/documents/{id}/report  — скачать PDF отчёт
+POST   /api/v1/documents/compare      — сравнить две версии
 
-## API Endpoints
+GET    /check-results/document/{id}   — получить последний результат проверки
+GET    /check-results/{id}            — получить результат по ID
 
-### Аутентификация (`/api/auth`)
-| Метод | Путь              | Описание                      |
-|-------|--------------------|-------------------------------|
-| POST  | `/auth/register`   | Регистрация                   |
-| POST  | `/auth/login`      | Вход                          |
-| POST  | `/auth/refresh`    | Обновление токена             |
+GET    /api/v1/admin/audit            — журнал аудита (ADMIN)
+GET    /api/v1/admin/audit/export     — выгрузить CSV (ADMIN)
+GET    /api/v1/admin/stats            — статистика (ADMIN)
 
-### Документы (`/api/documents`)
-| Метод  | Путь                     | Описание                      |
-|--------|--------------------------|-------------------------------|
-| POST   | `/documents`             | Загрузить документ            |
-| GET    | `/documents`             | Список своих документов       |
-| GET    | `/documents/{id}`        | Получить документ             |
-| DELETE | `/documents/{id}`        | Удалить документ              |
+WS     /ws → /topic/check/{docId}     — прогресс в реальном времени
+```
 
-### Результаты проверки (`/api/check-results`)
-| Метод | Путь                                  | Описание                      |
-|-------|----------------------------------------|-------------------------------|
-| GET   | `/check-results/document/{id}`         | Последний результат проверки  |
-| GET   | `/check-results/document/{id}/history` | История проверок              |
-| GET   | `/check-results/{id}`                  | Результат по ID               |
-
-### Администрирование (`/api/admin`)
-| Метод | Путь                          | Описание                      |
-|-------|-------------------------------|-------------------------------|
-| PATCH | `/admin/users/{id}/toggle`    | Блокировка/разблокировка      |
-
-## ГОСТ 19.201-78 — Проверяемые правила
-
-- ✅ Обязательные разделы (Введение, Основания, Назначение, Требования, и т.д.)
-- ✅ Подразделы раздела «Требования к программе» (функциональные, надёжность, и др.)
-- ✅ Оформление: шрифт (12–14 пт), поля страницы, межстрочный интервал
-- ✅ Наличие титульного листа
-- ✅ Лист утверждения / согласования
-- ✅ Нумерация страниц
-
-## RBAC Роли
-
-| Роль          | Описание                              |
-|---------------|---------------------------------------|
-| ROLE_USER     | Загрузка документов, просмотр своих   |
-| ROLE_REVIEWER | + просмотр чужих, история проверок    |
-| ROLE_ADMIN    | + управление пользователями           |
+## Backend-only
+Проект является Java Spring Boot backend-программой.  
+Фронтенд не используется. Интерфейс для тестирования API — только Swagger UI.

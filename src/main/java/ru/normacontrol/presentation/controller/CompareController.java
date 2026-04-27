@@ -38,7 +38,7 @@ public class CompareController {
             @ApiResponse(responseCode = "404", description = "Один из документов не найден", content = @Content)
     })
     @PostMapping("/compare")
-    @PreAuthorize("hasRole('ROLE_USER')")
+    @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
     public ResponseEntity<DocumentComparisonDto> compare(
             @Valid @RequestBody CompareRequest request,
             Principal principal) {

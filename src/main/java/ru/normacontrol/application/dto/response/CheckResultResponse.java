@@ -20,5 +20,10 @@ public class CheckResultResponse {
     private String summary;
     private LocalDateTime checkedAt;
     private UUID checkedBy;
+    private Integer complianceScore;
+    private String ruleSetName;
+    private String ruleSetVersion;
+    private Long processingTimeMs;
+    private String reportStoragePath;
     private List<ViolationResponse> violations;
 }

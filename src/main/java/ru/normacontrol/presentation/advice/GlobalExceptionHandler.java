@@ -1,6 +1,9 @@
 package ru.normacontrol.presentation.advice;
 
+import jakarta.persistence.EntityNotFoundException;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -10,93 +13,158 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import ru.normacontrol.infrastructure.exception.FileSizeLimitExceededException;
+import ru.normacontrol.infrastructure.exception.RateLimitExceededException;
+import ru.normacontrol.infrastructure.parser.UnsupportedDocumentTypeException;
 
 import java.time.LocalDateTime;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Глобальный обработчик исключений для REST API.
- * Возвращает структурированные JSON-ответы об ошибках.
+ * Global REST exception handler with unified error payloads.
  */
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    /**
+     * Handle invalid request payloads and bean validation failures.
+     *
+     * @param ex thrown validation exception
+     * @param request current HTTP request
+     * @return unified error response
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
-        Map<String, String> fieldErrors = ex.getBindingResult().getFieldErrors().stream()
-                .collect(Collectors.toMap(
-                        FieldError::getField,
-                        fe -> fe.getDefaultMessage() != null ? fe.getDefaultMessage() : "Невалидное значение",
-                        (a, b) -> a
-                ));
-
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(buildError(HttpStatus.BAD_REQUEST, "Ошибка валидации", fieldErrors));
+    public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException ex, HttpServletRequest request) {
+        String message = ex.getBindingResult().getFieldErrors().stream()
+                .map(fieldError -> fieldError.getField() + ": " + defaultMessage(fieldError))
+                .collect(Collectors.joining("; "));
+        log.warn("Validation error: {}", message);
+        return build(HttpStatus.BAD_REQUEST, message, request, false, ex);
     }
 
-    @ExceptionHandler(IllegalArgumentException.class)
-    public ResponseEntity<Map<String, Object>> handleIllegalArgument(IllegalArgumentException ex) {
-        log.warn("Некорректный запрос: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(buildError(HttpStatus.BAD_REQUEST, ex.getMessage(), null));
-    }
-
+    /**
+     * Handle authentication failures.
+     *
+     * @param ex thrown exception
+     * @param request current request
+     * @return unified error response
+     */
     @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<Map<String, Object>> handleBadCredentials(BadCredentialsException ex) {
-        log.warn("Ошибка аутентификации: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(buildError(HttpStatus.UNAUTHORIZED, ex.getMessage(), null));
+    public ResponseEntity<ErrorResponse> handleBadCredentials(BadCredentialsException ex, HttpServletRequest request) {
+        return build(HttpStatus.UNAUTHORIZED, ex.getMessage(), request, false, ex);
     }
 
-    @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
-        log.warn("Доступ запрещён: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(buildError(HttpStatus.FORBIDDEN, "Доступ запрещён", null));
+    /**
+     * Handle bad request arguments.
+     *
+     * @param ex thrown exception
+     * @param request current request
+     * @return unified error response
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex, HttpServletRequest request) {
+        return build(HttpStatus.BAD_REQUEST, ex.getMessage(), request, false, ex);
     }
 
-    @ExceptionHandler(SecurityException.class)
-    public ResponseEntity<Map<String, Object>> handleSecurity(SecurityException ex) {
-        log.warn("Нарушение безопасности: {}", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(buildError(HttpStatus.FORBIDDEN, ex.getMessage(), null));
+    /**
+     * Handle authorization failures.
+     *
+     * @param ex thrown exception
+     * @param request current request
+     * @return unified error response
+     */
+    @ExceptionHandler({AccessDeniedException.class, SecurityException.class})
+    public ResponseEntity<ErrorResponse> handleAccessDenied(Exception ex, HttpServletRequest request) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage(), request, false, ex);
     }
 
-    @ExceptionHandler(MaxUploadSizeExceededException.class)
-    public ResponseEntity<Map<String, Object>> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
-        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
-                .body(buildError(HttpStatus.PAYLOAD_TOO_LARGE,
-                        "Размер файла превышает допустимый лимит (50 МБ)", null));
+    /**
+     * Handle missing entities.
+     *
+     * @param ex thrown exception
+     * @param request current request
+     * @return unified error response
+     */
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleEntityNotFound(EntityNotFoundException ex, HttpServletRequest request) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage(), request, false, ex);
     }
 
-    @ExceptionHandler(RuntimeException.class)
-    public ResponseEntity<Map<String, Object>> handleRuntime(RuntimeException ex) {
-        log.error("Внутренняя ошибка: {}", ex.getMessage(), ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(buildError(HttpStatus.INTERNAL_SERVER_ERROR,
-                        "Внутренняя ошибка сервера", null));
+    /**
+     * Handle payloads exceeding configured file size.
+     *
+     * @param ex thrown exception
+     * @param request current request
+     * @return unified error response
+     */
+    @ExceptionHandler({FileSizeLimitExceededException.class, MaxUploadSizeExceededException.class})
+    public ResponseEntity<ErrorResponse> handleFileTooLarge(Exception ex, HttpServletRequest request) {
+        String message = ex instanceof MaxUploadSizeExceededException
+                ? "Размер файла превышает допустимый лимит"
+                : ex.getMessage();
+        return build(HttpStatus.PAYLOAD_TOO_LARGE, message, request, false, ex);
     }
 
+    /**
+     * Handle rate-limiting errors.
+     *
+     * @param ex thrown exception
+     * @param request current request
+     * @return unified error response
+     */
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleRateLimit(RateLimitExceededException ex, HttpServletRequest request) {
+        return build(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request, false, ex);
+    }
+
+    /**
+     * Handle unsupported document formats.
+     *
+     * @param ex thrown exception
+     * @param request current request
+     * @return unified error response
+     */
+    @ExceptionHandler(UnsupportedDocumentTypeException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedDocumentType(UnsupportedDocumentTypeException ex, HttpServletRequest request) {
+        return build(HttpStatus.UNSUPPORTED_MEDIA_TYPE, ex.getMessage(), request, false, ex);
+    }
+
+    /**
+     * Handle all unexpected server-side errors.
+     *
+     * @param ex thrown exception
+     * @param request current request
+     * @return unified error response
+     */
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<Map<String, Object>> handleGeneral(Exception ex) {
-        log.error("Необработанное исключение: {}", ex.getMessage(), ex);
-        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(buildError(HttpStatus.INTERNAL_SERVER_ERROR,
-                        "Непредвиденная ошибка", null));
+    public ResponseEntity<ErrorResponse> handleGeneral(Exception ex, HttpServletRequest request) {
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "Внутренняя ошибка сервера", request, true, ex);
     }
 
-    private Map<String, Object> buildError(HttpStatus status, String message, Object details) {
-        Map<String, Object> error = new LinkedHashMap<>();
-        error.put("timestamp", LocalDateTime.now().toString());
-        error.put("status", status.value());
-        error.put("error", status.getReasonPhrase());
-        error.put("message", message);
-        if (details != null) {
-            error.put("details", details);
+    private ResponseEntity<ErrorResponse> build(HttpStatus status,
+                                                String message,
+                                                HttpServletRequest request,
+                                                boolean withStacktrace,
+                                                Exception ex) {
+        String path = request != null ? request.getRequestURI() : "";
+        String traceId = MDC.get("traceId");
+        if (withStacktrace) {
+            log.error("{} {}", status.value(), message, ex);
+        } else {
+            log.warn("{} {}", status.value(), message);
         }
-        return error;
+        return ResponseEntity.status(status).body(new ErrorResponse(
+                LocalDateTime.now(),
+                status.value(),
+                status.getReasonPhrase(),
+                message,
+                path,
+                traceId
+        ));
+    }
+
+    private String defaultMessage(FieldError fieldError) {
+        return fieldError.getDefaultMessage() != null ? fieldError.getDefaultMessage() : "невалидное значение";
     }
 }

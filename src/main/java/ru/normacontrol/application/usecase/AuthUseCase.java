@@ -8,21 +8,24 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.normacontrol.application.dto.request.LoginRequest;
 import ru.normacontrol.application.dto.request.RefreshTokenRequest;
-import ru.normacontrol.application.dto.request.RegisterRequest;
 import ru.normacontrol.application.dto.response.AuthResponse;
 import ru.normacontrol.domain.entity.Role;
 import ru.normacontrol.domain.entity.User;
 import ru.normacontrol.domain.enums.RoleName;
 import ru.normacontrol.domain.repository.UserRepository;
+import ru.normacontrol.infrastructure.audit.AuditLogged;
+import ru.normacontrol.infrastructure.exception.RateLimitExceededException;
+import ru.normacontrol.infrastructure.security.BruteForceService;
 import ru.normacontrol.infrastructure.security.JwtTokenProvider;
 import ru.normacontrol.infrastructure.security.RefreshTokenService;
+import ru.normacontrol.application.dto.request.RegisterRequest;
 
 import java.time.LocalDateTime;
 import java.util.Set;
 import java.util.UUID;
 
 /**
- * Use Case: Аутентификация и регистрация пользователей.
+ * Use case for user registration and authentication.
  */
 @Slf4j
 @Service
@@ -33,11 +36,16 @@ public class AuthUseCase {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider jwtTokenProvider;
     private final RefreshTokenService refreshTokenService;
+    private final BruteForceService bruteForceService;
 
     /**
-     * Регистрация нового пользователя.
+     * Register a new local user account.
+     *
+     * @param request registration payload
+     * @return issued JWT tokens
      */
     @Transactional
+    @AuditLogged(action = "REGISTER", resourceType = "USER")
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("Пользователь с таким email уже существует");
@@ -60,33 +68,47 @@ public class AuthUseCase {
 
         userRepository.save(user);
         log.info("Зарегистрирован новый пользователь: {}", user.getUsername());
-
         return generateTokens(user);
     }
 
     /**
-     * Аутентификация пользователя по логину/паролю.
+     * Authenticate a user by login and password.
+     *
+     * @param request login request
+     * @return issued JWT tokens
      */
-    @Transactional(readOnly = true)
+    @Transactional
+    @AuditLogged(action = "LOGIN", resourceType = "USER")
     public AuthResponse login(LoginRequest request) {
+        if (bruteForceService.isBlocked(request.getLogin())) {
+            throw new RateLimitExceededException("Аккаунт временно заблокирован из-за превышения попыток входа");
+        }
+
         User user = userRepository.findByEmail(request.getLogin())
                 .or(() -> userRepository.findByUsername(request.getLogin()))
                 .orElseThrow(() -> new BadCredentialsException("Неверный логин или пароль"));
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
+            bruteForceService.recordFailedAttempt(request.getLogin());
             throw new BadCredentialsException("Неверный логин или пароль");
         }
 
         if (!user.isEnabled()) {
-            throw new BadCredentialsException("Аккаунт заблокирован");
+            throw new BadCredentialsException("Аккаунт отключён");
         }
 
+        bruteForceService.resetAttempts(request.getLogin());
+        user.setUpdatedAt(LocalDateTime.now());
+        userRepository.save(user);
         log.info("Пользователь авторизован: {}", user.getUsername());
         return generateTokens(user);
     }
 
     /**
-     * Обновление access token по refresh token.
+     * Refresh JWT tokens by refresh token.
+     *
+     * @param request refresh request
+     * @return newly issued tokens
      */
     @Transactional
     public AuthResponse refresh(RefreshTokenRequest request) {

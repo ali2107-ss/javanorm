@@ -1,5 +1,6 @@
 package ru.normacontrol.presentation.controller;
 
+import jakarta.persistence.EntityNotFoundException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,7 +22,7 @@ import java.util.stream.Collectors;
  * REST-контроллер для результатов проверки.
  */
 @RestController
-@RequestMapping("/check-results")
+@RequestMapping({"/check-results", "/api/v1/check-results"})
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Результаты проверки", description = "Получение результатов проверки ГОСТ 19.201-78")
@@ -55,7 +56,7 @@ public class CheckResultController {
     @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
     public ResponseEntity<CheckResultResponse> getById(@PathVariable UUID resultId) {
         CheckResult result = checkResultRepository.findById(resultId)
-                .orElseThrow(() -> new IllegalArgumentException(
+                .orElseThrow(() -> new EntityNotFoundException(
                         "Результат проверки не найден: " + resultId));
         return ResponseEntity.ok(checkResultMapper.toResponse(result));
     }

@@ -1,125 +1,115 @@
 server:
-  port: ${SERVER_PORT:8080}
-  servlet:
-    context-path: /api
+  port: 8080
+  shutdown: graceful
 
 spring:
   application:
-    name: norma-control
-
-  # ── PostgreSQL ───────────────────────────────────────────────────────
+    name: normacontrol
   datasource:
-    url: jdbc:postgresql://localhost:5432/normacontrol
-    username: ${DB_USERNAME:normacontrol}
-    password: ${DB_PASSWORD:normacontrol}
-    driver-class-name: org.postgresql.Driver
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5
-      idle-timeout: 30000
-
+      connection-timeout: 30000
   jpa:
     hibernate:
       ddl-auto: validate
     show-sql: false
     properties:
       hibernate:
-        format_sql: true
         dialect: org.hibernate.dialect.PostgreSQLDialect
-
-  # ── Liquibase ────────────────────────────────────────────────────────
+        format_sql: true
   liquibase:
-    change-log: classpath:db/changelog/db.changelog-master.yaml
-    enabled: true
-
-  # ── Redis ────────────────────────────────────────────────────────────
+    change-log: classpath:db/changelog/db.changelog-master.xml
+  redis:
+    host: ${SPRING_REDIS_HOST:localhost}
+    port: 6379
+    password: ${SPRING_REDIS_PASSWORD:${REDIS_PASSWORD:}}
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
-      password: ${REDIS_PASSWORD:}
-      timeout: 5000
-
-  # ── Kafka ────────────────────────────────────────────────────────────
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: 6379
+      password: ${SPRING_REDIS_PASSWORD:${REDIS_PASSWORD:}}
   kafka:
-    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
-      group-id: norma-control-group
+      group-id: normacontrol-group
       auto-offset-reset: earliest
-      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
-      properties:
-        spring.json.trusted.packages: "ru.normacontrol.*"
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
-
-  # ── OAuth2 ───────────────────────────────────────────────────────────
   security:
     oauth2:
       client:
         registration:
           github:
-            client-id: ${GITHUB_CLIENT_ID:your-github-client-id}
-            client-secret: ${GITHUB_CLIENT_SECRET:your-github-client-secret}
-            scope: read:user,user:email
+            client-id: ${GITHUB_CLIENT_ID:}
+            client-secret: ${GITHUB_CLIENT_SECRET:}
           google:
-            client-id: ${GOOGLE_CLIENT_ID:your-google-client-id}
-            client-secret: ${GOOGLE_CLIENT_SECRET:your-google-client-secret}
-            scope: openid,profile,email
-
+            client-id: ${GOOGLE_CLIENT_ID:}
+            client-secret: ${GOOGLE_CLIENT_SECRET:}
   servlet:
     multipart:
       max-file-size: 50MB
-      max-request-size: 50MB
+      max-request-size: 55MB
+
+security:
+  jwt:
+    secret: ${JWT_SECRET}
+    access-token-ttl-ms: 3600000
+    refresh-token-ttl-ms: 2592000000
+
+jwt:
+  secret: ${JWT_SECRET}
+  access-token-expiration: 3600000
+  refresh-token-expiration: 2592000000
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY}
+  bucket: normacontrol-documents
+  bucket-name: normacontrol-documents
+
+ai:
+  anthropic:
+    api-key: ${ANTHROPIC_API_KEY}
+    model: claude-3-haiku-20240307
+    max-tokens: 500
+    timeout-seconds: 5
+
+anthropic:
+  api:
+    key: ${ANTHROPIC_API_KEY}
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        include: health,prometheus,info,metrics
+  metrics:
+    tags:
+      application: normacontrol
   endpoint:
     health:
-      probes:
-        enabled: true
-      show-details: never
-  prometheus:
-    metrics:
-      export:
-        enabled: true
+      show-details: when-authorized
 
-# ── MinIO ──────────────────────────────────────────────────────────────
-minio:
-  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
-  access-key: ${MINIO_ACCESS_KEY:minioadmin}
-  secret-key: ${MINIO_SECRET_KEY:minioadmin}
-  bucket-name: ${MINIO_BUCKET:norma-documents}
-
-# ── JWT ────────────────────────────────────────────────────────────────
-jwt:
-  secret: ${JWT_SECRET:c2VjcmV0S2V5Rm9yTm9ybWFDb250cm9sQXBwbGljYXRpb25UaGF0SXNMb25nRW5vdWdo}
-  access-token-expiration: 3600000      # 1 час
-  refresh-token-expiration: 2592000000  # 30 дней
-
-# ── Kafka Topics ───────────────────────────────────────────────────────
 kafka:
   topic:
     document-check: document-check-topic
     check-result: check-result-topic
 
-# ── Springdoc OpenAPI ──────────────────────────────────────────────────
 springdoc:
   api-docs:
-    path: /api-docs
+    path: /api/docs
   swagger-ui:
-    path: /docs
-    operations-sorter: method
-    tags-sorter: alpha
+    path: /api/swagger-ui
+    operationsSorter: method
 
-# ── Logging ────────────────────────────────────────────────────────────
 logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] [%X{traceId}] %-5level %logger{36} - %msg%n"
   level:
-    root: INFO
+    az.idayatali.normacontrol: DEBUG
     ru.normacontrol: DEBUG
-    org.springframework.security: INFO
+    org.springframework.kafka: WARN
     org.hibernate.SQL: WARN

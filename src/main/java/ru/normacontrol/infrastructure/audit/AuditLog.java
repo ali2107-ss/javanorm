@@ -1,9 +1,8 @@
-package ru.normacontrol.infrastructure.persistence.entity;
+package ru.normacontrol.infrastructure.audit;
 
+import com.vladmihalcea.hibernate.type.json.JsonType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -11,10 +10,15 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.UUID;
 
+/**
+ * Audit log entry persisted in PostgreSQL.
+ */
 @Entity
 @Table(name = "audit_logs")
 @Getter
@@ -22,10 +26,9 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class AuditLogJpaEntity {
+public class AuditLog {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
     @Column(name = "user_id", columnDefinition = "UUID")
@@ -46,12 +49,15 @@ public class AuditLogJpaEntity {
     @Column(name = "ip_address", length = 45)
     private String ipAddress;
 
+    @Column(name = "user_agent", columnDefinition = "TEXT")
+    private String userAgent;
+
+    @Type(JsonType.class)
     @Column(columnDefinition = "jsonb")
-    private String details;
+    private Map<String, Object> details;
 
     @Column(nullable = false)
-    @Builder.Default
-    private boolean success = true;
+    private boolean success;
 
     @Column(name = "error_message", columnDefinition = "TEXT")
     private String errorMessage;

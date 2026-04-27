@@ -1,5 +1,6 @@
 package ru.normacontrol.application.usecase;
 
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -7,12 +8,15 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 import ru.normacontrol.application.dto.response.DocumentResponse;
 import ru.normacontrol.application.mapper.DocumentMapper;
+import ru.normacontrol.domain.entity.CheckResult;
 import ru.normacontrol.domain.entity.Document;
 import ru.normacontrol.domain.enums.DocumentStatus;
 import ru.normacontrol.domain.event.DocumentUploadedEvent;
 import ru.normacontrol.domain.event.DomainEventPublisher;
+import ru.normacontrol.domain.repository.CheckResultRepository;
 import ru.normacontrol.domain.repository.ReadDocumentRepository;
 import ru.normacontrol.domain.repository.WriteDocumentRepository;
+import ru.normacontrol.infrastructure.audit.AuditLogged;
 import ru.normacontrol.infrastructure.minio.MinioStorageService;
 
 import java.time.LocalDateTime;
@@ -29,6 +33,7 @@ public class DocumentUseCase {
 
     private final ReadDocumentRepository readDocumentRepository;
     private final WriteDocumentRepository writeDocumentRepository;
+    private final CheckResultRepository checkResultRepository;
     private final MinioStorageService storageService;
     private final DocumentMapper documentMapper;
     private final DomainEventPublisher domainEventPublisher;
@@ -42,8 +47,8 @@ public class DocumentUseCase {
      * @return created document DTO
      */
     @Transactional
-    public DocumentResponse uploadAndCheck(MultipartFile file, UUID ownerId) {
-        String contentType = file.getContentType();
+    @AuditLogged(action = "UPLOAD_DOCUMENT", resourceType = "DOCUMENT")
+    public DocumentResponse execute(MultipartFile file, UUID ownerId) {
         String storageKey = UUID.randomUUID() + "_" + file.getOriginalFilename();
         storageService.uploadFile(storageKey, file);
 
@@ -51,7 +56,7 @@ public class DocumentUseCase {
                 .id(UUID.randomUUID())
                 .originalFilename(file.getOriginalFilename())
                 .storageKey(storageKey)
-                .contentType(contentType)
+                .contentType(file.getContentType())
                 .fileSize(file.getSize())
                 .status(DocumentStatus.UPLOADED)
                 .ownerId(ownerId)
@@ -66,6 +71,18 @@ public class DocumentUseCase {
     }
 
     /**
+     * Backward-compatible alias for upload execution.
+     *
+     * @param file uploaded file
+     * @param ownerId owner identifier
+     * @return created document response
+     */
+    @Transactional
+    public DocumentResponse uploadAndCheck(MultipartFile file, UUID ownerId) {
+        return execute(file, ownerId);
+    }
+
+    /**
      * Get a document by identifier.
      *
      * @param documentId document identifier
@@ -76,7 +93,7 @@ public class DocumentUseCase {
     public DocumentResponse getById(UUID documentId, UUID requesterId) {
         Document document = requireOwnedDocument(documentId, requesterId);
         if (document.getStatus() == DocumentStatus.DELETED) {
-            throw new IllegalArgumentException("Документ удален: " + documentId);
+            throw new EntityNotFoundException("Документ удалён: " + documentId);
         }
         return documentMapper.toResponse(document);
     }
@@ -102,6 +119,7 @@ public class DocumentUseCase {
      * @param requesterId requesting user
      */
     @Transactional
+    @AuditLogged(action = "DELETE_DOCUMENT", resourceType = "DOCUMENT")
     public void delete(UUID documentId, UUID requesterId) {
         Document document = requireOwnedDocument(documentId, requesterId);
         domainEventPublisher.publish(document.softDelete(requesterId));
@@ -109,9 +127,28 @@ public class DocumentUseCase {
         log.info("Document {} soft-deleted by {}", documentId, requesterId);
     }
 
+    /**
+     * Download the latest generated report for a document.
+     *
+     * @param documentId document identifier
+     * @param requesterId requesting user
+     * @return PDF bytes
+     */
+    @Transactional(readOnly = true)
+    @AuditLogged(action = "EXPORT_REPORT", resourceType = "CHECK_RESULT")
+    public byte[] downloadLatestReport(UUID documentId, UUID requesterId) {
+        requireOwnedDocument(documentId, requesterId);
+        CheckResult result = checkResultRepository.findLatestByDocumentId(documentId)
+                .orElseThrow(() -> new EntityNotFoundException("Результат проверки не найден: " + documentId));
+        if (result.getReportStoragePath() == null || result.getReportStoragePath().isBlank()) {
+            throw new EntityNotFoundException("PDF-отчёт ещё не сформирован");
+        }
+        return storageService.downloadBytes(result.getReportStoragePath());
+    }
+
     private Document requireOwnedDocument(UUID documentId, UUID requesterId) {
         Document document = readDocumentRepository.findById(documentId)
-                .orElseThrow(() -> new IllegalArgumentException("Документ не найден: " + documentId));
+                .orElseThrow(() -> new EntityNotFoundException("Документ не найден: " + documentId));
         if (!document.getOwnerId().equals(requesterId)) {
             throw new SecurityException("Нет доступа к документу");
         }

@@ -29,3 +29,6 @@ databaseChangeLog:
   - include:
       file: db/changelog/V8__create_refresh_tokens.sql
       relativeToChangelogFile: false
+  - include:
+      file: db/changelog/V9__alter_audit_logs_add_user_agent.sql
+      relativeToChangelogFile: false

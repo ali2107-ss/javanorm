@@ -1,5 +1,6 @@
 package ru.normacontrol.application.usecase;
 
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
@@ -12,6 +13,7 @@ import ru.normacontrol.domain.entity.Document;
 import ru.normacontrol.domain.entity.Violation;
 import ru.normacontrol.domain.repository.ReadDocumentRepository;
 import ru.normacontrol.domain.service.GostRuleEngine;
+import ru.normacontrol.infrastructure.audit.AuditLogged;
 import ru.normacontrol.infrastructure.minio.MinioStorageService;
 
 import java.io.InputStream;
@@ -42,11 +44,12 @@ public class CompareDocumentsUseCase {
      * @return comparison DTO
      */
     @Transactional(readOnly = true)
+    @AuditLogged(action = "COMPARE_DOCUMENTS", resourceType = "DOCUMENT")
     public DocumentComparisonDto compare(UUID docV1Id, UUID docV2Id, UUID userId) {
         Document docV1 = readDocumentRepository.findById(docV1Id)
-                .orElseThrow(() -> new IllegalArgumentException("Документ V1 не найден: " + docV1Id));
+                .orElseThrow(() -> new EntityNotFoundException("Документ V1 не найден: " + docV1Id));
         Document docV2 = readDocumentRepository.findById(docV2Id)
-                .orElseThrow(() -> new IllegalArgumentException("Документ V2 не найден: " + docV2Id));
+                .orElseThrow(() -> new EntityNotFoundException("Документ V2 не найден: " + docV2Id));
 
         if (!docV1.getOwnerId().equals(userId) || !docV2.getOwnerId().equals(userId)) {
             throw new SecurityException("Нет доступа к одному или обоим документам");

@@ -15,6 +15,7 @@ import java.util.UUID;
 public interface DocumentJpaRepository extends JpaRepository<DocumentJpaEntity, UUID> {
     List<DocumentJpaEntity> findByOwner_IdAndDeletedFalse(UUID ownerId);
     List<DocumentJpaEntity> findByStatusAndDeletedFalse(DocumentStatus status);
+    long countByDeletedFalse();
 
     @Query("""
             SELECT d FROM DocumentJpaEntity d

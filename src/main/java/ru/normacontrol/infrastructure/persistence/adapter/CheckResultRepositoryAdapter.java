@@ -50,14 +50,14 @@ public class CheckResultRepositoryAdapter implements CheckResultRepository {
         CheckResultJpaEntity entity = CheckResultJpaEntity.builder()
                 .id(checkResult.getId())
                 .document(DocumentJpaEntity.builder().id(checkResult.getDocumentId()).build())
-                .ruleSetName(DEFAULT_RULE_SET)
-                .ruleSetVersion(DEFAULT_RULE_SET_VERSION)
+                .ruleSetName(checkResult.getRuleSetName() != null ? checkResult.getRuleSetName() : DEFAULT_RULE_SET)
+                .ruleSetVersion(checkResult.getRuleSetVersion() != null ? checkResult.getRuleSetVersion() : DEFAULT_RULE_SET_VERSION)
                 .complianceScore(checkResult.getComplianceScore() != null
                         ? checkResult.getComplianceScore()
                         : checkResult.calculateScore())
                 .passed(checkResult.isPassed())
-                .reportStoragePath(null)
-                .processingTimeMs(null)
+                .reportStoragePath(checkResult.getReportStoragePath())
+                .processingTimeMs(checkResult.getProcessingTimeMs())
                 .checkedAt(checkResult.getCheckedAt())
                 .build();
 
@@ -94,7 +94,7 @@ public class CheckResultRepositoryAdapter implements CheckResultRepository {
                         .build())
                 .toList();
 
-        CheckResult result = CheckResult.builder()
+        return CheckResult.builder()
                 .id(entity.getId())
                 .documentId(entity.getDocument().getId())
                 .passed(entity.isPassed())
@@ -102,8 +102,12 @@ public class CheckResultRepositoryAdapter implements CheckResultRepository {
                 .checkedAt(entity.getCheckedAt())
                 .summary("Балл соответствия: " + entity.getComplianceScore())
                 .complianceScore(entity.getComplianceScore())
+                .ruleSetName(entity.getRuleSetName())
+                .ruleSetVersion(entity.getRuleSetVersion())
+                .processingTimeMs(entity.getProcessingTimeMs())
+                .reportStoragePath(entity.getReportStoragePath())
                 .violations(violations)
-                .build();
-        return result.evaluate();
+                .build()
+                .evaluate();
     }
 }

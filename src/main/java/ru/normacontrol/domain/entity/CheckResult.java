@@ -31,6 +31,10 @@ public class CheckResult {
     private UUID checkedBy;
     private String summary;
     private Integer complianceScore;
+    private String ruleSetName;
+    private String ruleSetVersion;
+    private Long processingTimeMs;
+    private String reportStoragePath;
 
     @Builder.Default
     private List<Violation> violations = new ArrayList<>();
@@ -74,7 +78,7 @@ public class CheckResult {
         long warningCount = violations.stream()
                 .filter(v -> v.getSeverity() == ViolationSeverity.WARNING)
                 .count();
-        int score = Math.max(0, 100 - (int) criticalCount * 15 - (int) warningCount * 5);
+        int score = Math.max(0, 100 - (int) criticalCount * 10 - (int) warningCount * 2);
         complianceScore = score;
         return score;
     }

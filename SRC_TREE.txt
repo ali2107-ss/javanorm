@@ -1,0 +1,68 @@
+Folder PATH listing for volume Windows
+Volume serial number is E06E-3D88
+C:\USERS\STUDENT\DESKTOP\JAVANORM\SRC
++---main
+|   +---java
+|   |   \---ru
+|   |       \---normacontrol
+|   |           +---application
+|   |           |   +---builder
+|   |           |   +---dto
+|   |           |   |   +---request
+|   |           |   |   \---response
+|   |           |   +---event
+|   |           |   +---mapper
+|   |           |   +---service
+|   |           |   \---usecase
+|   |           +---domain
+|   |           |   +---builder
+|   |           |   +---checker
+|   |           |   |   \---strategy
+|   |           |   +---entity
+|   |           |   +---enums
+|   |           |   +---event
+|   |           |   |   \---listener
+|   |           |   +---repository
+|   |           |   \---service
+|   |           |       \---rules
+|   |           +---infrastructure
+|   |           |   +---ai
+|   |           |   +---audit
+|   |           |   +---config
+|   |           |   +---exception
+|   |           |   +---kafka
+|   |           |   |   +---config
+|   |           |   |   +---consumer
+|   |           |   |   \---producer
+|   |           |   +---messaging
+|   |           |   +---minio
+|   |           |   +---parser
+|   |           |   +---persistence
+|   |           |   |   +---adapter
+|   |           |   |   +---entity
+|   |           |   |   \---repository
+|   |           |   +---redis
+|   |           |   +---report
+|   |           |   +---security
+|   |           |   +---web
+|   |           |   \---websocket
+|   |           \---presentation
+|   |               +---advice
+|   |               +---config
+|   |               +---controller
+|   |               \---dto
+|   |                   \---request
+|   \---resources
+|       \---db
+|           \---changelog
+|               \---migrations
+\---test
+    \---java
+        \---ru
+            \---normacontrol
+                +---application
+                |   \---usecase
+                +---domain
+                |   \---service
+                \---integration
+                    \---support

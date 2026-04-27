@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 
 /**
@@ -43,6 +44,31 @@ public class MinioStorageService {
     }
 
     /**
+     * Upload raw bytes to MinIO.
+     *
+     * @param objectKey object key
+     * @param bytes file contents
+     * @param contentType content type
+     */
+    public void upload(String objectKey, byte[] bytes, String contentType) {
+        try {
+            ensureBucketExists();
+
+            minioClient.putObject(PutObjectArgs.builder()
+                    .bucket(minioConfig.getBucketName())
+                    .object(objectKey)
+                    .stream(new ByteArrayInputStream(bytes), bytes.length, -1)
+                    .contentType(contentType)
+                    .build());
+
+            log.info("Р¤Р°Р№Р» Р·Р°РіСЂСѓР¶РµРЅ РІ MinIO: {}", objectKey);
+        } catch (Exception e) {
+            log.error("РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё Р±Р°Р№С‚РѕРІ РІ MinIO: {}", e.getMessage(), e);
+            throw new RuntimeException("РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё С„Р°Р№Р»Р° РІ С…СЂР°РЅРёР»РёС‰Рµ", e);
+        }
+    }
+
+    /**
      * Скачать файл из MinIO.
      */
     public InputStream downloadFile(String objectKey) {
@@ -54,6 +80,21 @@ public class MinioStorageService {
         } catch (Exception e) {
             log.error("Ошибка скачивания файла из MinIO: {}", e.getMessage(), e);
             throw new RuntimeException("Ошибка скачивания файла из хранилища", e);
+        }
+    }
+
+    /**
+     * Download an object into a byte array.
+     *
+     * @param objectKey object key
+     * @return file bytes
+     */
+    public byte[] downloadBytes(String objectKey) {
+        try (InputStream inputStream = downloadFile(objectKey)) {
+            return inputStream.readAllBytes();
+        } catch (Exception e) {
+            log.error("РћС€РёР±РєР° С‡С‚РµРЅРёСЏ Р±Р°Р№С‚РѕРІ РёР· MinIO: {}", e.getMessage(), e);
+            throw new RuntimeException("РћС€РёР±РєР° С‡С‚РµРЅРёСЏ С„Р°Р№Р»Р° РёР· С…СЂР°РЅРёР»РёС‰Р°", e);
         }
     }
 
