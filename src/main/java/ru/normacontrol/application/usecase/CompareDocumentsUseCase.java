@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import ru.normacontrol.application.dto.DocumentComparisonDto;
 import ru.normacontrol.application.dto.ViolationDto;
 import ru.normacontrol.domain.entity.CheckResult;
@@ -40,6 +41,7 @@ public class CompareDocumentsUseCase {
      * @param userId owner identifier
      * @return comparison DTO
      */
+    @Transactional(readOnly = true)
     public DocumentComparisonDto compare(UUID docV1Id, UUID docV2Id, UUID userId) {
         Document docV1 = readDocumentRepository.findById(docV1Id)
                 .orElseThrow(() -> new IllegalArgumentException("Документ V1 не найден: " + docV1Id));

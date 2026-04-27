@@ -15,10 +15,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/**
- * Адаптер, реализующий доменный порт UserRepository
- * через Spring Data JPA.
- */
 @Component
 @RequiredArgsConstructor
 public class UserRepositoryAdapter implements UserRepository {
@@ -28,9 +24,7 @@ public class UserRepositoryAdapter implements UserRepository {
 
     @Override
     public User save(User user) {
-        UserJpaEntity entity = toJpaEntity(user);
-        UserJpaEntity saved = jpaRepository.save(entity);
-        return toDomain(saved);
+        return toDomain(jpaRepository.save(toJpaEntity(user)));
     }
 
     @Override
@@ -45,7 +39,7 @@ public class UserRepositoryAdapter implements UserRepository {
 
     @Override
     public Optional<User> findByUsername(String username) {
-        return jpaRepository.findByUsername(username).map(this::toDomain);
+        return jpaRepository.findByDisplayName(username).map(this::toDomain);
     }
 
     @Override
@@ -55,7 +49,7 @@ public class UserRepositoryAdapter implements UserRepository {
 
     @Override
     public boolean existsByUsername(String username) {
-        return jpaRepository.existsByUsername(username);
+        return jpaRepository.existsByDisplayName(username);
     }
 
     @Override
@@ -63,51 +57,46 @@ public class UserRepositoryAdapter implements UserRepository {
         jpaRepository.deleteById(id);
     }
 
-    // ── Маппинг Domain ↔ JPA ──────────────────────────────────────────────
-
     private UserJpaEntity toJpaEntity(User user) {
         Set<RoleJpaEntity> roleEntities = user.getRoles().stream()
                 .map(role -> roleJpaRepository.findByName(role.getName())
-                        .orElseGet(() -> RoleJpaEntity.builder()
-                                .id(role.getId())
-                                .name(role.getName())
-                                .build()))
+                        .orElseGet(() -> RoleJpaEntity.builder().id(role.getId()).name(role.getName()).build()))
                 .collect(Collectors.toSet());
+
+        String displayName = user.getFullName() != null && !user.getFullName().isBlank()
+                ? user.getFullName()
+                : user.getUsername();
 
         return UserJpaEntity.builder()
                 .id(user.getId())
                 .email(user.getEmail())
-                .username(user.getUsername())
                 .passwordHash(user.getPasswordHash())
-                .fullName(user.getFullName())
+                .displayName(displayName)
                 .oauthProvider(user.getOauthProvider())
-                .oauthId(user.getOauthId())
+                .oauthProviderId(user.getOauthId())
                 .enabled(user.isEnabled())
                 .createdAt(user.getCreatedAt())
-                .updatedAt(user.getUpdatedAt())
+                .lastLoginAt(user.getUpdatedAt())
                 .roles(roleEntities)
                 .build();
     }
 
     private User toDomain(UserJpaEntity entity) {
         Set<Role> roles = entity.getRoles().stream()
-                .map(r -> Role.builder()
-                        .id(r.getId())
-                        .name(r.getName())
-                        .build())
+                .map(role -> Role.builder().id(role.getId()).name(role.getName()).build())
                 .collect(Collectors.toSet());
 
         return User.builder()
                 .id(entity.getId())
                 .email(entity.getEmail())
-                .username(entity.getUsername())
+                .username(entity.getDisplayName())
+                .fullName(entity.getDisplayName())
                 .passwordHash(entity.getPasswordHash())
-                .fullName(entity.getFullName())
                 .oauthProvider(entity.getOauthProvider())
-                .oauthId(entity.getOauthId())
+                .oauthId(entity.getOauthProviderId())
                 .enabled(entity.isEnabled())
                 .createdAt(entity.getCreatedAt())
-                .updatedAt(entity.getUpdatedAt())
+                .updatedAt(entity.getLastLoginAt())
                 .roles(roles)
                 .build();
     }

@@ -13,7 +13,6 @@ import ru.normacontrol.domain.event.DocumentUploadedEvent;
 import ru.normacontrol.domain.event.DomainEventPublisher;
 import ru.normacontrol.domain.repository.ReadDocumentRepository;
 import ru.normacontrol.domain.repository.WriteDocumentRepository;
-import ru.normacontrol.infrastructure.kafka.producer.DocumentCheckProducer;
 import ru.normacontrol.infrastructure.minio.MinioStorageService;
 
 import java.time.LocalDateTime;
@@ -31,9 +30,9 @@ public class DocumentUseCase {
     private final ReadDocumentRepository readDocumentRepository;
     private final WriteDocumentRepository writeDocumentRepository;
     private final MinioStorageService storageService;
-    private final DocumentCheckProducer checkProducer;
     private final DocumentMapper documentMapper;
     private final DomainEventPublisher domainEventPublisher;
+    private final CheckDocumentUseCase checkDocumentUseCase;
 
     /**
      * Upload a document and enqueue it for checking.
@@ -60,10 +59,9 @@ public class DocumentUseCase {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        document.enqueue();
         Document saved = writeDocumentRepository.save(document);
-        checkProducer.sendCheckRequest(saved.getId(), ownerId);
         domainEventPublisher.publish(new DocumentUploadedEvent(saved.getId(), ownerId, saved.getFileName()));
+        checkDocumentUseCase.initiateCheck(saved.getId(), ownerId);
         return documentMapper.toResponse(saved);
     }
 

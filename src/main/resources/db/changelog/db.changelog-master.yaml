@@ -1,11 +1,31 @@
 databaseChangeLog:
   - include:
-      file: db/changelog/migrations/001-create-roles.yaml
+      file: db/changelog/V0__create_roles.sql
+      relativeToChangelogFile: false
   - include:
-      file: db/changelog/migrations/002-create-users.yaml
+      file: db/changelog/V1__create_users.sql
+      relativeToChangelogFile: false
   - include:
-      file: db/changelog/migrations/003-create-documents.yaml
+      file: db/changelog/V1_1__create_user_roles.sql
+      relativeToChangelogFile: false
   - include:
-      file: db/changelog/migrations/004-create-check-results.yaml
+      file: db/changelog/V2__create_documents.sql
+      relativeToChangelogFile: false
   - include:
-      file: db/changelog/migrations/005-create-refresh-tokens.yaml
+      file: db/changelog/V3__create_check_results.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/V4__create_violations.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/V5__create_audit_logs.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/V6__insert_default_rule_set.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/V7__create_check_strategy_settings.sql
+      relativeToChangelogFile: false
+  - include:
+      file: db/changelog/V8__create_refresh_tokens.sql
+      relativeToChangelogFile: false

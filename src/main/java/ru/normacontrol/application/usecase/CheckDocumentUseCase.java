@@ -3,9 +3,12 @@ package ru.normacontrol.application.usecase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import ru.normacontrol.application.event.DocumentCheckRequestedEvent;
 import ru.normacontrol.application.dto.response.CheckResultResponse;
 import ru.normacontrol.application.mapper.CheckResultMapper;
 import ru.normacontrol.domain.entity.CheckResult;
@@ -45,6 +48,22 @@ public class CheckDocumentUseCase {
     private final ProgressPublisher progressPublisher;
     private final CheckEventPublisher checkEventPublisher;
     private final DomainEventPublisher domainEventPublisher;
+    private final ApplicationEventPublisher applicationEventPublisher;
+
+    /**
+     * Mark the document as queued and schedule Kafka publication after commit.
+     *
+     * @param documentId document identifier
+     * @param requestedBy requesting user
+     */
+    @Transactional
+    public void initiateCheck(UUID documentId, UUID requestedBy) {
+        Document document = readDocumentRepository.findById(documentId)
+                .orElseThrow(() -> new IllegalArgumentException("Документ не найден: " + documentId));
+        document.enqueue();
+        writeDocumentRepository.save(document);
+        applicationEventPublisher.publishEvent(new DocumentCheckRequestedEvent(documentId, requestedBy));
+    }
 
     /**
      * Execute the check asynchronously.
@@ -54,7 +73,7 @@ public class CheckDocumentUseCase {
      * @return completion future
      */
     @Async("checkExecutor")
-    @Transactional
+    @Transactional(isolation = Isolation.REPEATABLE_READ)
     public CompletableFuture<Void> executeCheck(UUID documentId, UUID checkedBy) {
         Document document = readDocumentRepository.findById(documentId)
                 .orElseThrow(() -> new IllegalArgumentException("Документ не найден: " + documentId));

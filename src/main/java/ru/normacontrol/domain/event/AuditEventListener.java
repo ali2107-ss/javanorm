@@ -4,10 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import ru.normacontrol.infrastructure.persistence.entity.AuditLogJpaEntity;
-import ru.normacontrol.infrastructure.persistence.repository.AuditLogJpaRepository;
-
-import java.time.LocalDateTime;
+import ru.normacontrol.application.service.AuditService;
 
 /**
  * Persists audit trail records for domain events.
@@ -16,7 +13,7 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class AuditEventListener {
 
-    private final AuditLogJpaRepository auditLogJpaRepository;
+    private final AuditService auditService;
 
     /**
      * Persist document upload audit entry.
@@ -26,7 +23,8 @@ public class AuditEventListener {
     @Async
     @EventListener
     public void onDocumentUploaded(DocumentUploadedEvent event) {
-        save("DOCUMENT_UPLOADED", event.docId(), event.userId(), "File: " + event.fileName());
+        auditService.log(event.userId(), null, "DOCUMENT_UPLOADED", "DOCUMENT", event.docId(),
+                "{\"fileName\":\"" + event.fileName() + "\"}", true, null);
     }
 
     /**
@@ -37,7 +35,8 @@ public class AuditEventListener {
     @Async
     @EventListener
     public void onCheckStarted(CheckStartedEvent event) {
-        save("CHECK_STARTED", event.docId(), null, "Rule set: " + event.ruleSetName());
+        auditService.log(null, null, "CHECK_STARTED", "DOCUMENT", event.docId(),
+                "{\"ruleSetName\":\"" + event.ruleSetName() + "\"}", true, null);
     }
 
     /**
@@ -48,8 +47,8 @@ public class AuditEventListener {
     @Async
     @EventListener
     public void onCheckCompleted(CheckCompletedEvent event) {
-        save("CHECK_COMPLETED", event.docId(), null,
-                "Score: " + event.score() + ", passed: " + event.passed());
+        auditService.log(null, null, "CHECK_COMPLETED", "DOCUMENT", event.docId(),
+                "{\"score\":" + event.score() + ",\"passed\":" + event.passed() + "}", true, null);
     }
 
     /**
@@ -60,16 +59,7 @@ public class AuditEventListener {
     @Async
     @EventListener
     public void onDocumentDeleted(DocumentDeletedEvent event) {
-        save("DOCUMENT_DELETED", event.docId(), event.userId(), "File: " + event.fileName());
-    }
-
-    private void save(String action, java.util.UUID docId, java.util.UUID userId, String details) {
-        auditLogJpaRepository.save(AuditLogJpaEntity.builder()
-                .action(action)
-                .documentId(docId)
-                .userId(userId)
-                .details(details)
-                .createdAt(LocalDateTime.now())
-                .build());
+        auditService.log(event.userId(), null, "DOCUMENT_DELETED", "DOCUMENT", event.docId(),
+                "{\"fileName\":\"" + event.fileName() + "\"}", true, null);
     }
 }

@@ -3,85 +3,103 @@ package ru.normacontrol.infrastructure.persistence.adapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import ru.normacontrol.domain.entity.CheckResult;
+import ru.normacontrol.domain.entity.Document;
 import ru.normacontrol.domain.entity.Violation;
 import ru.normacontrol.domain.repository.CheckResultRepository;
 import ru.normacontrol.infrastructure.persistence.entity.CheckResultJpaEntity;
+import ru.normacontrol.infrastructure.persistence.entity.DocumentJpaEntity;
 import ru.normacontrol.infrastructure.persistence.entity.ViolationJpaEntity;
 import ru.normacontrol.infrastructure.persistence.repository.CheckResultJpaRepository;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
-/**
- * Адаптер, реализующий доменный порт CheckResultRepository
- * через Spring Data JPA.
- */
 @Component
 @RequiredArgsConstructor
 public class CheckResultRepositoryAdapter implements CheckResultRepository {
+
+    private static final String DEFAULT_RULE_SET = "ГОСТ 19.201-78";
+    private static final String DEFAULT_RULE_SET_VERSION = "1.0";
 
     private final CheckResultJpaRepository jpaRepository;
 
     @Override
     public CheckResult save(CheckResult checkResult) {
-        CheckResultJpaEntity entity = toJpaEntity(checkResult);
-        CheckResultJpaEntity saved = jpaRepository.save(entity);
-        return toDomain(saved);
+        return toDomain(jpaRepository.save(toJpaEntity(checkResult)));
     }
 
     @Override
     public Optional<CheckResult> findById(UUID id) {
-        return jpaRepository.findById(id).map(this::toDomain);
+        return jpaRepository.findWithViolationsById(id).map(this::toDomain);
     }
 
     @Override
     public List<CheckResult> findByDocumentId(UUID documentId) {
-        return jpaRepository.findByDocumentId(documentId).stream()
-                .map(this::toDomain).collect(Collectors.toList());
+        return jpaRepository.findByDocument_Id(documentId).stream().map(this::toDomain).toList();
     }
 
     @Override
     public Optional<CheckResult> findLatestByDocumentId(UUID documentId) {
-        return jpaRepository.findFirstByDocumentIdOrderByCheckedAtDesc(documentId).map(this::toDomain);
+        return jpaRepository.findFirstByDocument_IdOrderByCheckedAtDesc(documentId).map(this::toDomain);
     }
 
-    private CheckResultJpaEntity toJpaEntity(CheckResult cr) {
+    private CheckResultJpaEntity toJpaEntity(CheckResult checkResult) {
         CheckResultJpaEntity entity = CheckResultJpaEntity.builder()
-                .id(cr.getId()).documentId(cr.getDocumentId()).passed(cr.isPassed())
-                .totalViolations(cr.getTotalViolations()).checkedAt(cr.getCheckedAt())
-                .checkedBy(cr.getCheckedBy()).summary(cr.getSummary()).build();
+                .id(checkResult.getId())
+                .document(DocumentJpaEntity.builder().id(checkResult.getDocumentId()).build())
+                .ruleSetName(DEFAULT_RULE_SET)
+                .ruleSetVersion(DEFAULT_RULE_SET_VERSION)
+                .complianceScore(checkResult.calculateScore())
+                .passed(checkResult.isPassed())
+                .reportStoragePath(null)
+                .processingTimeMs(null)
+                .checkedAt(checkResult.getCheckedAt())
+                .build();
 
-        List<ViolationJpaEntity> violationEntities = cr.getViolations().stream()
-                .map(v -> ViolationJpaEntity.builder()
-                        .id(v.getId()).ruleCode(v.getRuleCode())
-                        .description(v.getDescription()).severity(v.getSeverity())
-                        .pageNumber(v.getPageNumber()).lineNumber(v.getLineNumber())
-                        .suggestion(v.getSuggestion()).aiSuggestion(v.getAiSuggestion())
-                        .ruleReference(v.getRuleReference())
-                        .checkResult(entity).build())
-                .collect(Collectors.toList());
-
-        entity.setViolations(violationEntities);
+        entity.setViolations(checkResult.getViolations().stream()
+                .map(violation -> ViolationJpaEntity.builder()
+                        .id(violation.getId())
+                        .ruleCode(violation.getRuleCode())
+                        .description(violation.getDescription())
+                        .severity(violation.getSeverity())
+                        .pageNumber(violation.getPageNumber())
+                        .lineNumber(violation.getLineNumber())
+                        .suggestion(violation.getSuggestion())
+                        .aiSuggestion(violation.getAiSuggestion())
+                        .ruleReference(violation.getRuleReference())
+                        .checkResult(entity)
+                        .build())
+                .toList());
         return entity;
     }
 
     private CheckResult toDomain(CheckResultJpaEntity entity) {
         List<Violation> violations = entity.getViolations().stream()
                 .map(v -> Violation.builder()
-                        .id(v.getId()).ruleCode(v.getRuleCode())
-                        .description(v.getDescription()).severity(v.getSeverity())
-                        .pageNumber(v.getPageNumber()).lineNumber(v.getLineNumber())
-                        .suggestion(v.getSuggestion()).aiSuggestion(v.getAiSuggestion())
+                        .id(v.getId())
+                        .ruleCode(v.getRuleCode())
+                        .description(v.getDescription())
+                        .severity(v.getSeverity())
+                        .pageNumber(v.getPageNumber())
+                        .lineNumber(v.getLineNumber())
+                        .suggestion(v.getSuggestion())
+                        .aiSuggestion(v.getAiSuggestion())
                         .ruleReference(v.getRuleReference())
                         .build())
-                .collect(Collectors.toList());
+                .toList();
 
-        return CheckResult.builder()
-                .id(entity.getId()).documentId(entity.getDocumentId())
-                .passed(entity.isPassed()).totalViolations(entity.getTotalViolations())
-                .checkedAt(entity.getCheckedAt()).checkedBy(entity.getCheckedBy())
-                .summary(entity.getSummary()).violations(violations).build();
+        CheckResult result = CheckResult.builder()
+                .id(entity.getId())
+                .documentId(entity.getDocument().getId())
+                .passed(entity.isPassed())
+                .totalViolations(violations.size())
+                .checkedAt(entity.getCheckedAt())
+                .checkedBy(null)
+                .summary("Балл соответствия: " + entity.getComplianceScore())
+                .violations(violations)
+                .build();
+        result.evaluate();
+        return result;
     }
 }

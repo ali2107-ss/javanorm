@@ -12,7 +12,7 @@ import ru.normacontrol.infrastructure.persistence.repository.UserJpaRepository;
 import java.util.stream.Collectors;
 
 /**
- * Кастомная реализация UserDetailsService для Spring Security.
+ * Spring Security adapter for loading users from persistence.
  */
 @Service
 @RequiredArgsConstructor
@@ -20,22 +20,27 @@ public class CustomUserDetailsService implements UserDetailsService {
 
     private final UserJpaRepository userJpaRepository;
 
+    /**
+     * Load user by email or display name.
+     *
+     * @param usernameOrEmail login value
+     * @return Spring Security user
+     * @throws UsernameNotFoundException when user is absent
+     */
     @Override
     public UserDetails loadUserByUsername(String usernameOrEmail) throws UsernameNotFoundException {
         UserJpaEntity user = userJpaRepository.findByEmail(usernameOrEmail)
-                .or(() -> userJpaRepository.findByUsername(usernameOrEmail))
-                .orElseThrow(() -> new UsernameNotFoundException(
-                        "Пользователь не найден: " + usernameOrEmail));
-
-        var authorities = user.getRoles().stream()
-                .map(role -> new SimpleGrantedAuthority(role.getName().name()))
-                .collect(Collectors.toList());
+                .or(() -> userJpaRepository.findByDisplayName(usernameOrEmail))
+                .orElseThrow(() -> new UsernameNotFoundException("Пользователь не найден: " + usernameOrEmail));
 
         return org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
                 .password(user.getPasswordHash() != null ? user.getPasswordHash() : "")
-                .authorities(authorities)
+                .authorities(user.getRoles().stream()
+                        .map(role -> new SimpleGrantedAuthority(role.getName().name()))
+                        .collect(Collectors.toList()))
                 .disabled(!user.isEnabled())
+                .accountLocked(user.isAccountLocked())
                 .build();
     }
 }
