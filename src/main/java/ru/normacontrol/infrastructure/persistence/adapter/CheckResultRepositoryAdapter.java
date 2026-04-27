@@ -3,7 +3,6 @@ package ru.normacontrol.infrastructure.persistence.adapter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import ru.normacontrol.domain.entity.CheckResult;
-import ru.normacontrol.domain.entity.Document;
 import ru.normacontrol.domain.entity.Violation;
 import ru.normacontrol.domain.repository.CheckResultRepository;
 import ru.normacontrol.infrastructure.persistence.entity.CheckResultJpaEntity;
@@ -15,6 +14,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * JPA adapter for check results.
+ */
 @Component
 @RequiredArgsConstructor
 public class CheckResultRepositoryAdapter implements CheckResultRepository {
@@ -50,7 +52,9 @@ public class CheckResultRepositoryAdapter implements CheckResultRepository {
                 .document(DocumentJpaEntity.builder().id(checkResult.getDocumentId()).build())
                 .ruleSetName(DEFAULT_RULE_SET)
                 .ruleSetVersion(DEFAULT_RULE_SET_VERSION)
-                .complianceScore(checkResult.calculateScore())
+                .complianceScore(checkResult.getComplianceScore() != null
+                        ? checkResult.getComplianceScore()
+                        : checkResult.calculateScore())
                 .passed(checkResult.isPassed())
                 .reportStoragePath(null)
                 .processingTimeMs(null)
@@ -71,21 +75,22 @@ public class CheckResultRepositoryAdapter implements CheckResultRepository {
                         .checkResult(entity)
                         .build())
                 .toList());
+
         return entity;
     }
 
     private CheckResult toDomain(CheckResultJpaEntity entity) {
         List<Violation> violations = entity.getViolations().stream()
-                .map(v -> Violation.builder()
-                        .id(v.getId())
-                        .ruleCode(v.getRuleCode())
-                        .description(v.getDescription())
-                        .severity(v.getSeverity())
-                        .pageNumber(v.getPageNumber())
-                        .lineNumber(v.getLineNumber())
-                        .suggestion(v.getSuggestion())
-                        .aiSuggestion(v.getAiSuggestion())
-                        .ruleReference(v.getRuleReference())
+                .map(violation -> Violation.builder()
+                        .id(violation.getId())
+                        .ruleCode(violation.getRuleCode())
+                        .description(violation.getDescription())
+                        .severity(violation.getSeverity())
+                        .pageNumber(violation.getPageNumber())
+                        .lineNumber(violation.getLineNumber())
+                        .suggestion(violation.getSuggestion())
+                        .aiSuggestion(violation.getAiSuggestion())
+                        .ruleReference(violation.getRuleReference())
                         .build())
                 .toList();
 
@@ -95,11 +100,10 @@ public class CheckResultRepositoryAdapter implements CheckResultRepository {
                 .passed(entity.isPassed())
                 .totalViolations(violations.size())
                 .checkedAt(entity.getCheckedAt())
-                .checkedBy(null)
                 .summary("Балл соответствия: " + entity.getComplianceScore())
+                .complianceScore(entity.getComplianceScore())
                 .violations(violations)
                 .build();
-        result.evaluate();
-        return result;
+        return result.evaluate();
     }
 }

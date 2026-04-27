@@ -30,6 +30,7 @@ public class CheckResult {
     private LocalDateTime checkedAt;
     private UUID checkedBy;
     private String summary;
+    private Integer complianceScore;
 
     @Builder.Default
     private List<Violation> violations = new ArrayList<>();
@@ -49,13 +50,15 @@ public class CheckResult {
     }
 
     /**
-     * Evaluate pass/fail status according to ГОСТ checks.
+     * Evaluate pass/fail status according to the compliance threshold.
      *
      * @return current aggregate for chaining
      */
     public CheckResult evaluate() {
-        passed = violations.stream().noneMatch(v -> v.getSeverity() == ViolationSeverity.CRITICAL);
         totalViolations = violations.size();
+        int score = complianceScore != null ? complianceScore : calculateScore();
+        complianceScore = score;
+        passed = score >= 80;
         return this;
     }
 
@@ -71,7 +74,9 @@ public class CheckResult {
         long warningCount = violations.stream()
                 .filter(v -> v.getSeverity() == ViolationSeverity.WARNING)
                 .count();
-        return Math.max(0, 100 - (int) criticalCount * 15 - (int) warningCount * 5);
+        int score = Math.max(0, 100 - (int) criticalCount * 15 - (int) warningCount * 5);
+        complianceScore = score;
+        return score;
     }
 
     /**
@@ -80,7 +85,8 @@ public class CheckResult {
      * @return completion event
      */
     public CheckCompletedEvent attachResult() {
-        return new CheckCompletedEvent(documentId, calculateScore(), passed);
+        int score = complianceScore != null ? complianceScore : calculateScore();
+        return new CheckCompletedEvent(documentId, score, passed);
     }
 
     /**

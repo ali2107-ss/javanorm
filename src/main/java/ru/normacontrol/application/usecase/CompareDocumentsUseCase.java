@@ -34,7 +34,7 @@ public class CompareDocumentsUseCase {
     private final GostRuleEngine gostRuleEngine;
 
     /**
-     * Compare two document revisions for the same user.
+     * Compare two document revisions for the same owner.
      *
      * @param docV1Id first document identifier
      * @param docV2Id second document identifier
@@ -47,6 +47,10 @@ public class CompareDocumentsUseCase {
                 .orElseThrow(() -> new IllegalArgumentException("Документ V1 не найден: " + docV1Id));
         Document docV2 = readDocumentRepository.findById(docV2Id)
                 .orElseThrow(() -> new IllegalArgumentException("Документ V2 не найден: " + docV2Id));
+
+        if (!docV1.getOwnerId().equals(userId) || !docV2.getOwnerId().equals(userId)) {
+            throw new SecurityException("Нет доступа к одному или обоим документам");
+        }
 
         CompletableFuture<CheckResult> futureV1 = CompletableFuture.supplyAsync(() -> checkDocument(docV1, userId));
         CompletableFuture<CheckResult> futureV2 = CompletableFuture.supplyAsync(() -> checkDocument(docV2, userId));
@@ -73,8 +77,8 @@ public class CompareDocumentsUseCase {
                 .map(ViolationDto::from)
                 .toList();
 
-        int scoreV1 = resultV1.calculateScore();
-        int scoreV2 = resultV2.calculateScore();
+        int scoreV1 = resultV1.getComplianceScore() != null ? resultV1.getComplianceScore() : resultV1.calculateScore();
+        int scoreV2 = resultV2.getComplianceScore() != null ? resultV2.getComplianceScore() : resultV2.calculateScore();
 
         return DocumentComparisonDto.builder()
                 .docV1Id(docV1Id)

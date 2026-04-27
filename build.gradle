@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'jacoco'
     id 'org.springframework.boot' version '3.2.5'
     id 'io.spring.dependency-management' version '1.1.5'
 }
@@ -23,7 +24,6 @@ repositories {
 }
 
 dependencies {
-    // ── Spring Boot Starters ──────────────────────────────────────────
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
     implementation 'org.springframework.boot:spring-boot-starter-data-redis'
@@ -31,51 +31,66 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-validation'
     implementation 'org.springframework.boot:spring-boot-starter-oauth2-client'
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
-
-    // ── WebSocket ─────────────────────────────────────────────────────
     implementation 'org.springframework.boot:spring-boot-starter-websocket'
-
-    // ── Kafka ─────────────────────────────────────────────────────────
     implementation 'org.springframework.kafka:spring-kafka'
-
-    // ── Database ──────────────────────────────────────────────────────
     runtimeOnly 'org.postgresql:postgresql'
     implementation 'org.liquibase:liquibase-core'
-
-    // ── MinIO (S3-совместимое хранилище) ──────────────────────────────
     implementation 'io.minio:minio:8.5.9'
-
-    // ── JWT ───────────────────────────────────────────────────────────
     implementation 'io.jsonwebtoken:jjwt-api:0.12.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.5'
     runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.5'
-
-    // ── OpenAPI / Swagger UI ──────────────────────────────────────────
     implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:2.5.0'
-
-    // ── Документы: DOCX + PDF ─────────────────────────────────────────
     implementation 'org.apache.poi:poi-ooxml:5.2.5'
     implementation 'org.apache.pdfbox:pdfbox:3.0.2'
-
-    // ── MapStruct ─────────────────────────────────────────────────────
     implementation 'org.mapstruct:mapstruct:1.5.5.Final'
     annotationProcessor 'org.mapstruct:mapstruct-processor:1.5.5.Final'
-
-    // ── AI & Rate Limiting (WebClient & Bucket4j) ─────────────────────
     implementation 'org.springframework.boot:spring-boot-starter-webflux'
     implementation 'com.bucket4j:bucket4j-core:8.10.1'
 
-    // ── Lombok ────────────────────────────────────────────────────────
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
 
-    // ── Тесты ─────────────────────────────────────────────────────────
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.security:spring-security-test'
     testImplementation 'org.springframework.kafka:spring-kafka-test'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.12.0'
+    testImplementation 'org.testcontainers:junit-jupiter:1.20.1'
+    testImplementation 'org.testcontainers:postgresql:1.20.1'
+    testImplementation 'org.testcontainers:kafka:1.20.1'
 }
 
 tasks.named('test') {
     useJUnitPlatform()
+    finalizedBy tasks.jacocoTestReport
 }
+
+jacoco {
+    toolVersion = '0.8.11'
+}
+
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            element = 'PACKAGE'
+            includes = ['ru.normacontrol.domain.*', 'ru.normacontrol.application.*']
+            limit {
+                minimum = 0.80
+            }
+        }
+    }
+}
+
+jacocoTestReport {
+    reports {
+        xml.required = true
+        html.required = true
+    }
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: ['**/*Dto.class', '**/*Config.class', '**/NormaControlApplication.class'])
+        }))
+    }
+}
+
+check.dependsOn tasks.jacocoTestCoverageVerification
