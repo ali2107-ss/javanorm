@@ -18,7 +18,7 @@ import java.util.UUID;
  * REST-контроллер для управления профилем пользователя.
  */
 @RestController
-@RequestMapping("/users")
+@RequestMapping({"/users", "/api/v1/users"})
 @RequiredArgsConstructor
 @SecurityRequirement(name = "bearerAuth")
 @Tag(name = "Пользователи", description = "Управление профилем пользователя")

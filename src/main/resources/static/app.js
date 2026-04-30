@@ -126,10 +126,12 @@ class NormaControlApp {
                 this.showAuth(false);
                 this.loadDashboardData();
             } else {
+                // If token is invalid, clear it
                 this.handleLogout();
             }
         } catch (e) {
-            this.showNotification('Сервер недоступен', 'error');
+            console.error('Auth check failed:', e);
+            // Don't logout on network error, just show offline
         }
     }
 
@@ -149,8 +151,9 @@ class NormaControlApp {
             if (response.ok) {
                 this.state.token = data.access_token;
                 localStorage.setItem('access_token', data.access_token);
-                this.checkAuth();
+                this.showAuth(false);
                 this.showNotification('Вход выполнен!', 'success');
+                await this.checkAuth();
             } else {
                 this.showNotification(data.message || 'Ошибка входа', 'error');
             }
