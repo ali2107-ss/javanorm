@@ -1,3 +1,10 @@
+Вот ссылки для доступа к вашему запущенному проекту:
+
+Основное приложение (API): http://localhost:8080
+Документация Swagger UI: http://localhost:8080/api/swagger-ui
+Мониторинг Grafana: http://localhost:3000 (если запросит пароль, по умолчанию admin / admin)
+Хранилище MinIO: http://localhost:9000 (консоль админа доступна на http://localhost:9001)
+
 Folder PATH listing for volume Windows
 Volume serial number is E06E-3D88
 C:\USERS\STUDENT\DESKTOP\JAVANORM\SRC

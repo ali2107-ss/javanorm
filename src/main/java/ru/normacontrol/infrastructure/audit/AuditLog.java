@@ -1,6 +1,7 @@
 package ru.normacontrol.infrastructure.audit;
 
-import com.vladmihalcea.hibernate.type.json.JsonType;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -10,7 +11,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-import org.hibernate.annotations.Type;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -52,7 +52,7 @@ public class AuditLog {
     @Column(name = "user_agent", columnDefinition = "TEXT")
     private String userAgent;
 
-    @Type(JsonType.class)
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
     private Map<String, Object> details;
 
