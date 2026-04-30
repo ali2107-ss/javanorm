@@ -8,5 +8,6 @@ public enum DocumentStatus {
     QUEUED,
     CHECKING,
     CHECKED,
-    FAILED
+    FAILED,
+    DELETED
 }

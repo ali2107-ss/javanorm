@@ -11,7 +11,7 @@ import ru.normacontrol.application.dto.request.RegisterRequest;
 import ru.normacontrol.application.dto.response.AuthResponse;
 import ru.normacontrol.application.usecase.AuthUseCase;
 import ru.normacontrol.infrastructure.audit.AuditLogged;
-import ru.normacontrol.infrastructure.security.JwtService;
+import ru.normacontrol.infrastructure.security.JwtTokenProvider;
 
 /**
  * REST controller for authentication operations.
@@ -22,7 +22,7 @@ import ru.normacontrol.infrastructure.security.JwtService;
 public class AuthController {
 
     private final AuthUseCase authUseCase;
-    private final JwtService jwtService;
+    private final JwtTokenProvider jwtTokenProvider;
 
     /**
      * Register a new user.
@@ -73,7 +73,7 @@ public class AuthController {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             accessToken = authHeader.substring(7);
         }
-        jwtService.logout(accessToken, request.getRefreshToken());
+        authUseCase.logout(accessToken, request.getRefreshToken());
         return ResponseEntity.noContent().build();
     }
 }

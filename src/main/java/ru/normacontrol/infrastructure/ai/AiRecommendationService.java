@@ -30,7 +30,7 @@ public class AiRecommendationService {
     private final Bucket bucket;
     private final ObjectMapper objectMapper;
 
-    @Value("${anthropic.api.key:default_key}")
+    @Value("${ai.anthropic.api-key:default_key}")
     private String apiKey;
 
     public AiRecommendationService(

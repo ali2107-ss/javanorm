@@ -121,6 +121,21 @@ public class AuthUseCase {
         return generateTokens(user);
     }
 
+    /**
+     * Logout user by revoking their refresh token.
+     *
+     * @param accessToken optional access token (can be blacklisted in Redis)
+     * @param refreshToken refresh token to revoke
+     */
+    @Transactional
+    public void logout(String accessToken, String refreshToken) {
+        if (refreshToken != null) {
+            refreshTokenService.revokeRefreshToken(refreshToken);
+        }
+        // Access token blacklisting could be added here using Redis if required.
+        log.info("Пользователь вышел из системы");
+    }
+
     private AuthResponse generateTokens(User user) {
         String accessToken = jwtTokenProvider.generateAccessToken(user);
         String refreshToken = refreshTokenService.createRefreshToken(user.getId());

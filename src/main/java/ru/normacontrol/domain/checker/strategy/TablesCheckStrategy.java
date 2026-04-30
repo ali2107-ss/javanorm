@@ -56,7 +56,7 @@ public class TablesCheckStrategy implements CheckStrategy {
         if (!hasCaption) {
             violations.add(Violation.builder()
                     .id(UUID.randomUUID())
-                    .ruleCode("TABLE.MISSING_CAPTION")
+                    .ruleCode("TBL-001")
                     .description("У таблицы отсутствует подпись")
                     .severity(ViolationSeverity.WARNING)
                     .pageNumber(0)

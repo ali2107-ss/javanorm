@@ -58,7 +58,7 @@ public class LanguageCheckStrategy implements CheckStrategy {
                 if (lower.contains(phrase)) {
                     violations.add(Violation.builder()
                             .id(UUID.randomUUID())
-                            .ruleCode("LANGUAGE.FORBIDDEN_PHRASE")
+                            .ruleCode("LANG-001")
                             .description("Запрещенная фраза: " + phrase)
                             .severity(ViolationSeverity.CRITICAL)
                             .pageNumber(0)
@@ -72,7 +72,7 @@ public class LanguageCheckStrategy implements CheckStrategy {
             if (PAST_TENSE_PATTERN.matcher(lower).find()) {
                 violations.add(Violation.builder()
                         .id(UUID.randomUUID())
-                        .ruleCode("LANGUAGE.PAST_TENSE")
+                        .ruleCode("LANG-002")
                         .description("Обнаружено прошедшее время")
                         .severity(ViolationSeverity.WARNING)
                         .pageNumber(0)

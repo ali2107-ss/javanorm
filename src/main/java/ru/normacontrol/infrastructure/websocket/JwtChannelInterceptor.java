@@ -10,7 +10,7 @@ import org.springframework.messaging.support.ChannelInterceptor;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Component;
-import ru.normacontrol.infrastructure.security.JwtService;
+import ru.normacontrol.infrastructure.security.JwtTokenProvider;
 
 import java.util.Collections;
 import java.util.UUID;
@@ -23,7 +23,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class JwtChannelInterceptor implements ChannelInterceptor {
 
-    private final JwtService jwtService;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @Override
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
@@ -34,8 +34,8 @@ public class JwtChannelInterceptor implements ChannelInterceptor {
             
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 String token = authHeader.substring(7);
-                if (jwtService.validateToken(token)) {
-                    UUID userId = jwtService.extractUserId(token);
+                if (jwtTokenProvider.validateToken(token)) {
+                    UUID userId = UUID.fromString(jwtTokenProvider.getUserIdFromToken(token));
                     
                     var authentication = new UsernamePasswordAuthenticationToken(
                             userId, null, Collections.emptyList());
