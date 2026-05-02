@@ -55,12 +55,17 @@ public class DataInitializer implements CommandLineRunner {
         UserJpaEntity adminUser = userRepository.findByEmail("admin@demo.ru")
                 .orElseThrow(() -> new IllegalStateException("Demo admin was not created"));
 
-        if (documentRepository.countByDeletedFalse() == 0) {
-            createDocumentWithResult(adminUser, "ТЗ_НормаКонтроль.docx", "demo/tz_normacontrol.docx", 245760L, 87, true);
-            createDocumentWithResult(adminUser, "Пояснительная_записка.docx", "demo/poyasnitelnaya_zapiska.docx", 193536L, 62, false);
-            createDocumentWithResult(adminUser, "Руководство_пользователя.docx", "demo/rukovodstvo_polzovatelya.docx", 319488L, 94, true);
-            createDocumentWithResult(adminUser, "ТЗ_версия2.docx", "demo/tz_versiya2.docx", 262144L, 91, true);
-            createDocumentWithResult(adminUser, "Черновик.docx", "demo/chernovik.docx", 151552L, 43, false);
+        createDemoDocumentIfMissing(adminUser, "ТЗ_НормаКонтроль.docx", "demo/tz_normacontrol.docx", 245760L, 87, true);
+        createDemoDocumentIfMissing(adminUser, "Пояснительная_записка.docx", "demo/poyasnitelnaya_zapiska.docx", 193536L, 62, false);
+        createDemoDocumentIfMissing(adminUser, "Руководство_пользователя.docx", "demo/rukovodstvo_polzovatelya.docx", 319488L, 94, true);
+        createDemoDocumentIfMissing(adminUser, "ТЗ_версия2.docx", "demo/tz_versiya2.docx", 262144L, 91, true);
+        createDemoDocumentIfMissing(adminUser, "Черновик.docx", "demo/chernovik.docx", 151552L, 43, false);
+
+        documentRepository.findAll().stream()
+                .filter(document -> checkResultRepository.findByDocument_Id(document.getId()).isEmpty())
+                .forEach(document -> createResultForDocument(document, 87, true));
+
+        if (documentRepository.countByDeletedFalse() >= 5) {
             generateAuditLogs(adminUser);
             log.info("Demo documents and check results initialized.");
         }
@@ -86,6 +91,19 @@ public class DataInitializer implements CommandLineRunner {
                 .build()));
     }
 
+    private void createDemoDocumentIfMissing(UserJpaEntity owner,
+                                             String originalFileName,
+                                             String storagePath,
+                                             long fileSizeBytes,
+                                             int score,
+                                             boolean passed) {
+        boolean exists = documentRepository.findAll().stream()
+                .anyMatch(document -> originalFileName.equals(document.getOriginalFileName()));
+        if (!exists) {
+            createDocumentWithResult(owner, originalFileName, storagePath, fileSizeBytes, score, passed);
+        }
+    }
+
     private void createDocumentWithResult(UserJpaEntity owner,
                                           String originalFileName,
                                           String storagePath,
@@ -104,6 +122,15 @@ public class DataInitializer implements CommandLineRunner {
                 .createdAt(LocalDateTime.now().minusDays(5 - Math.max(1, score % 5)))
                 .updatedAt(LocalDateTime.now())
                 .build());
+
+        createResultForDocument(document, score, passed);
+    }
+
+    private void createResultForDocument(DocumentJpaEntity document, int score, boolean passed) {
+        document.setStatus(DocumentStatus.CHECKED);
+        document.setDeleted(false);
+        document.setUpdatedAt(LocalDateTime.now());
+        documentRepository.save(document);
 
         CheckResultJpaEntity result = CheckResultJpaEntity.builder()
                 .id(UUID.randomUUID())

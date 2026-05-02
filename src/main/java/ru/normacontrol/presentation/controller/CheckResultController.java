@@ -9,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,7 +36,6 @@ public class CheckResultController {
     private final CheckResultMapper checkResultMapper;
 
     @GetMapping("/document/{documentId}")
-    @Transactional(readOnly = true)
     @Operation(summary = "Получить последний результат проверки документа")
     @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
     public ResponseEntity<?> getLatestResult(@PathVariable UUID documentId) {
@@ -54,7 +52,6 @@ public class CheckResultController {
     }
 
     @GetMapping("/document/{documentId}/history")
-    @Transactional(readOnly = true)
     @Operation(summary = "Получить историю проверок документа")
     @PreAuthorize("hasAnyRole('REVIEWER', 'ADMIN')")
     public ResponseEntity<?> getHistory(@PathVariable UUID documentId) {
@@ -70,7 +67,6 @@ public class CheckResultController {
     }
 
     @GetMapping("/{resultId}")
-    @Transactional(readOnly = true)
     @Operation(summary = "Получить результат проверки по ID")
     @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
     public ResponseEntity<?> getById(@PathVariable UUID resultId) {

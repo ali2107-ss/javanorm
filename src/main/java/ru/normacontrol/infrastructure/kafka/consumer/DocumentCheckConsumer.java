@@ -2,6 +2,8 @@ package ru.normacontrol.infrastructure.kafka.consumer;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import ru.normacontrol.application.usecase.CheckDocumentUseCase;
@@ -32,12 +34,21 @@ public class DocumentCheckConsumer {
     private final CheckResultRepository   checkResultRepository;
     private final ReadDocumentRepository  readDocumentRepository;
     private final UserRepository          userRepository;
+    private final ObjectMapper            objectMapper;
 
     @KafkaListener(
             topics = "${kafka.topic.document-check}",
             groupId = "${spring.kafka.consumer.group-id}"
     )
-    public void onDocumentCheckRequest(Map<String, String> message) {
+    public void onDocumentCheckRequest(String payload) {
+        Map<String, String> message;
+        try {
+            message = objectMapper.readValue(payload, new TypeReference<>() {});
+        } catch (Exception e) {
+            log.error("Не удалось прочитать Kafka-сообщение проверки: {}", e.getMessage(), e);
+            return;
+        }
+
         String documentIdStr = message.get("documentId");
         String userIdStr     = message.get("userId");
 

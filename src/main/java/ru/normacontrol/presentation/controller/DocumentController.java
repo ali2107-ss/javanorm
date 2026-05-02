@@ -13,7 +13,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -59,7 +58,6 @@ public class DocumentController {
     }
 
     @GetMapping
-    @Transactional(readOnly = true)
     @Operation(summary = "Получить список документов")
     @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
     public ResponseEntity<?> getMyDocuments(Authentication authentication) {
@@ -73,7 +71,6 @@ public class DocumentController {
     }
 
     @GetMapping("/{documentId}")
-    @Transactional(readOnly = true)
     @Operation(summary = "Получить документ по ID")
     @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
     public ResponseEntity<?> getById(@PathVariable UUID documentId, Authentication authentication) {
