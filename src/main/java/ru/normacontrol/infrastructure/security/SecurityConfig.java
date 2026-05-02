@@ -44,7 +44,7 @@ public class SecurityConfig {
                         .requestMatchers("/", "/index.html", "/*.js", "/*.css", "/favicon.ico", "/assets/**").permitAll()
                         .requestMatchers("/v1/auth/**", "/api/v1/auth/**").permitAll()
                         .requestMatchers("/api/docs/**", "/api/swagger-ui/**", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
-                        .requestMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info", "/actuator/prometheus", "/api/v1/system/status").permitAll()
                         .anyRequest().authenticated()
                 )
                 .addFilterBefore(traceIdFilter, UsernamePasswordAuthenticationFilter.class)

@@ -48,8 +48,8 @@
       <a class="nav-item" href="documents.html"><span class="nav-icon">📄</span> Документы</a>
       <a class="nav-item" href="check.html"><span class="nav-icon">🔍</span> Проверка</a>
       <a class="nav-item" href="stats.html"><span class="nav-icon">📈</span> Статистика</a>
-      <a class="nav-item" href="database.html"><span class="nav-icon">🗄️</span> База данных</a>
       <a class="nav-item" href="profile.html"><span class="nav-icon">👤</span> Профиль</a>
+      <a class="nav-item" href="about.html"><span class="nav-icon">ℹ️</span> О проекте</a>
     </nav>
     <div class="sidebar-footer">
       <div class="sidebar-user">
@@ -131,18 +131,30 @@
           </div>
           <div class="mt-24">
             <div class="card-title text-sm mb-16">📋 Статус системы</div>
-            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px" id="systemStatusList">
               <div style="display:flex;justify-content:space-between">
                 <span class="text-muted">API сервер</span>
-                <span id="statusApi" style="color:var(--success);font-weight:600">● Онлайн</span>
+                <span id="statusApi" style="color:var(--success);font-weight:600">● Загрузка</span>
               </div>
               <div style="display:flex;justify-content:space-between">
                 <span class="text-muted">База данных</span>
-                <span style="color:var(--success);font-weight:600">● Онлайн</span>
+                <span id="statusDb" style="color:var(--success);font-weight:600">● Загрузка</span>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <span class="text-muted">Redis</span>
+                <span id="statusRedis" style="color:var(--success);font-weight:600">● Загрузка</span>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <span class="text-muted">Kafka</span>
+                <span id="statusKafka" style="color:var(--success);font-weight:600">● Загрузка</span>
+              </div>
+              <div style="display:flex;justify-content:space-between">
+                <span class="text-muted">MinIO</span>
+                <span id="statusMinio" style="color:var(--success);font-weight:600">● Загрузка</span>
               </div>
               <div style="display:flex;justify-content:space-between">
                 <span class="text-muted">AI-модуль</span>
-                <span id="statusAI" style="color:var(--warning);font-weight:600">● Ожидание</span>
+                <span id="statusAI" style="color:var(--success);font-weight:600">● Загрузка</span>
               </div>
             </div>
           </div>
@@ -322,8 +334,49 @@ function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
+// ── System Status ─────────────────────────────────────
+async function loadSystemStatus() {
+  try {
+    const data = await apiCall('/api/v1/system/status');
+    if (!data) return;
+    
+    const updateIndicator = (id, status) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (status === 'UP') {
+        el.style.color = 'var(--success)';
+        el.textContent = '● Онлайн';
+      } else {
+        el.style.color = 'var(--danger)';
+        el.textContent = '● Ошибка';
+        showError('Компонент недоступен: ' + id);
+      }
+    };
+    
+    updateIndicator('statusApi', data.status);
+    updateIndicator('statusDb', data.components?.database?.status);
+    updateIndicator('statusRedis', data.components?.redis?.status);
+    updateIndicator('statusKafka', data.components?.kafka?.status);
+    updateIndicator('statusMinio', data.components?.minio?.status);
+    updateIndicator('statusAI', data.components?.aiService?.status);
+
+  } catch (e) {
+    console.warn('System status failed:', e.message);
+    const setErr = (id) => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.style.color = 'var(--danger)';
+        el.textContent = '● Ошибка';
+      }
+    };
+    ['statusApi','statusDb','statusRedis','statusKafka','statusMinio','statusAI'].forEach(setErr);
+  }
+}
+
 loadStats();
 loadRecent();
+loadSystemStatus();
+setInterval(loadSystemStatus, 30000); // 30 seconds
 </script>
 </body>
 </html>

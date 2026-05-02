@@ -227,6 +227,22 @@
     <div class="register-link">
       Нет аккаунта? <a href="#" id="registerLink">Зарегистрироваться</a>
     </div>
+
+    <!-- Демо-доступ -->
+    <div style="margin-top: 32px; padding: 20px; background: rgba(0,0,0,0.03); border-radius: 12px; border: 1px dashed rgba(0,0,0,0.1);">
+      <h3 style="font-size: 14px; margin-bottom: 16px; color: var(--text); text-align: center;">Быстрый вход для демонстрации</h3>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <button type="button" class="btn btn-secondary btn-block" style="justify-content: flex-start; gap: 10px;" onclick="demoLogin('admin@normacontrol.ru', 'Admin1234!')">
+          👑 Войти как Админ
+        </button>
+        <button type="button" class="btn btn-secondary btn-block" style="justify-content: flex-start; gap: 10px;" onclick="demoLogin('reviewer@normacontrol.ru', 'Review123!')">
+          🔍 Войти как Рецензент
+        </button>
+        <button type="button" class="btn btn-secondary btn-block" style="justify-content: flex-start; gap: 10px;" onclick="demoLogin('student@normacontrol.ru', 'Student123!')">
+          👤 Войти как Студент
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -262,6 +278,13 @@
     e.preventDefault();
     showInfo('Регистрация через администратора. Свяжитесь с вашим руководителем.');
   });
+
+  // ── Demo login ─────────────────────────────────────
+  function demoLogin(email, password) {
+    document.getElementById('email').value = email;
+    document.getElementById('password').value = password;
+    document.getElementById('loginBtn').click();
+  }
 
   // ── Login form ─────────────────────────────────────
   document.getElementById('loginForm').addEventListener('submit', async function(e) {

@@ -120,8 +120,8 @@
       <a class="nav-item" href="documents.html"><span class="nav-icon">📄</span> Документы</a>
       <a class="nav-item" href="check.html"><span class="nav-icon">🔍</span> Проверка</a>
       <a class="nav-item" href="stats.html"><span class="nav-icon">📈</span> Статистика</a>
-      <a class="nav-item" href="database.html"><span class="nav-icon">🗄️</span> База данных</a>
       <a class="nav-item" href="profile.html"><span class="nav-icon">👤</span> Профиль</a>
+      <a class="nav-item" href="about.html"><span class="nav-icon">ℹ️</span> О проекте</a>
     </nav>
     <div class="sidebar-footer">
       <div class="sidebar-user">
@@ -227,8 +227,9 @@
             </div>
 
             <!-- Actions -->
-            <div style="display:flex;gap:12px;margin-bottom:24px">
+            <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
               <button class="btn btn-primary" id="downloadReportBtn" onclick="downloadReport()">📄 Скачать PDF отчёт</button>
+              <button class="btn btn-success" id="autoFixBtn" onclick="autoFixDocument()">🔧 Авто-исправить</button>
               <button class="btn btn-secondary" onclick="resetCheck()">🔄 Новая проверка</button>
             </div>
 
@@ -477,6 +478,25 @@ function toggleAccordion(i) {
   const isOpen = item.classList.contains('open');
   item.classList.toggle('open');
   body.style.maxHeight = isOpen ? '0' : body.scrollHeight + 'px';
+}
+
+async function autoFixDocument() {
+  if (!currentDocId) return;
+  const btn = document.getElementById('autoFixBtn');
+  const originalText = btn.textContent;
+  btn.textContent = '⏳ Исправление...';
+  btn.disabled = true;
+
+  try {
+    const data = await apiCall(`/api/v1/documents/${currentDocId}/fix`, { method: 'POST' });
+    showSuccess(`Исправлено ${data.fixedCount} нарушений! Скачивание...`);
+    apiDownload(`/api/v1/documents/${currentDocId}/fixed`, 'fixed_document.docx');
+  } catch (e) {
+    showError('Ошибка авто-исправления: ' + e.message);
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
 }
 
 function resetCheck() {
