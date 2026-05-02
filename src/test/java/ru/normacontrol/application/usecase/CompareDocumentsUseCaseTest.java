@@ -18,7 +18,6 @@ import ru.normacontrol.infrastructure.minio.MinioStorageService;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Optional;
 import java.util.UUID;

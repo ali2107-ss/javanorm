@@ -4,12 +4,10 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.xwpf.usermodel.*;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
-import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
 import org.springframework.stereotype.Service;
 import ru.normacontrol.domain.entity.CheckResult;
 import ru.normacontrol.domain.entity.Document;
 import ru.normacontrol.domain.entity.Violation;
-import ru.normacontrol.domain.enums.ViolationSeverity;
 import ru.normacontrol.domain.repository.CheckResultRepository;
 import ru.normacontrol.domain.repository.ReadDocumentRepository;
 import ru.normacontrol.infrastructure.minio.MinioStorageService;
@@ -18,7 +16,6 @@ import jakarta.persistence.EntityNotFoundException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
-import java.math.BigInteger;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -45,10 +42,8 @@ public class DocumentAutoFixService {
 
     private static final String FIXED_PREFIX = "fixed/";
     private static final String PLACEHOLDER_COLOR = "FF0000";    // красный
-    private static final String HIGHLIGHT_COLOR   = "FFFF00";    // жёлтый
 
     private static final String TARGET_FONT  = "Times New Roman";
-    private static final int    TARGET_SIZE  = 28;               // half-points (14pt × 2)
 
     /** Запрещённые слова-маркеры (из LANG-стратегии). */
     private static final List<String> FORBIDDEN_PHRASES = List.of(
@@ -161,7 +156,7 @@ public class DocumentAutoFixService {
                         run.setFontFamily(TARGET_FONT);
                         changed = true;
                     }
-                    if (run.getFontSize() != -1 && run.getFontSize() != 14) {
+                    if (run.getFontSizeAsDouble() != null && run.getFontSizeAsDouble() != 14.0) {
                         run.setFontSize(14);
                         changed = true;
                     }

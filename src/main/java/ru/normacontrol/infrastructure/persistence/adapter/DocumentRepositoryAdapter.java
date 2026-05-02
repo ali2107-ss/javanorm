@@ -17,7 +17,7 @@ import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
-public class DocumentRepositoryAdapter implements DocumentRepository, ReadDocumentRepository, WriteDocumentRepository {
+public class DocumentRepositoryAdapter implements DocumentRepository {
 
     private final DocumentJpaRepository jpaRepository;
 

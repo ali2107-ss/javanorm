@@ -23,7 +23,6 @@ import ru.normacontrol.domain.service.GostRuleEngine;
 import ru.normacontrol.application.event.DocumentCheckRequestedEvent;
 import ru.normacontrol.infrastructure.ai.AiRecommendationService;
 import ru.normacontrol.infrastructure.audit.AuditLogged;
-import ru.normacontrol.infrastructure.kafka.producer.DocumentCheckProducer;
 import ru.normacontrol.infrastructure.minio.MinioStorageService;
 import ru.normacontrol.infrastructure.report.ReportGenerator;
 import ru.normacontrol.infrastructure.websocket.ProgressPublisher;
@@ -49,7 +48,6 @@ public class CheckDocumentUseCase {
     private final CheckResultMapper checkResultMapper;
     private final AiRecommendationService aiRecommendationService;
     private final ProgressPublisher progressPublisher;
-    private final DocumentCheckProducer documentCheckProducer;
     private final DomainEventPublisher domainEventPublisher;
     private final ApplicationEventPublisher applicationEventPublisher;
     private final ReportGenerator reportGenerator;

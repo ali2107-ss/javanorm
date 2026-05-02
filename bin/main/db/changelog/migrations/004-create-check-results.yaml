@@ -1,0 +1,100 @@
+databaseChangeLog:
+  - changeSet:
+      id: 004-create-check-results
+      author: normacontrol
+      changes:
+        - createTable:
+            tableName: check_results
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: document_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: passed
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+              - column:
+                  name: total_violations
+                  type: INT
+                  defaultValueNumeric: 0
+              - column:
+                  name: checked_at
+                  type: TIMESTAMP
+                  defaultValueComputed: NOW()
+              - column:
+                  name: checked_by
+                  type: UUID
+              - column:
+                  name: summary
+                  type: TEXT
+        - createTable:
+            tableName: violations
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: check_result_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: rule_code
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: TEXT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: severity
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: page_number
+                  type: INT
+                  defaultValueNumeric: 0
+              - column:
+                  name: line_number
+                  type: INT
+                  defaultValueNumeric: 0
+              - column:
+                  name: suggestion
+                  type: TEXT
+              - column:
+                  name: rule_reference
+                  type: VARCHAR(255)
+        - addForeignKeyConstraint:
+            baseTableName: check_results
+            baseColumnNames: document_id
+            referencedTableName: documents
+            referencedColumnNames: id
+            constraintName: fk_check_results_document
+        - addForeignKeyConstraint:
+            baseTableName: violations
+            baseColumnNames: check_result_id
+            referencedTableName: check_results
+            referencedColumnNames: id
+            constraintName: fk_violations_check_result
+        - createIndex:
+            indexName: idx_check_results_document
+            tableName: check_results
+            columns:
+              - column:
+                  name: document_id

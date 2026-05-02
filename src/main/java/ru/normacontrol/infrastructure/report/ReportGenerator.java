@@ -151,6 +151,7 @@ public class ReportGenerator {
         scoreCanvas.showTextAligned(new Paragraph(scoreLabel(score))
                         .setFont(bold).setFontSize(14).setFontColor(scoreColor(score)),
                 centerX, centerY - 105, TextAlignment.CENTER);
+        scoreCanvas.close();
 
         Table stats = new Table(UnitValue.createPercentArray(new float[]{1, 1, 1}))
                 .useAllAvailableWidth()

@@ -11,7 +11,6 @@ import ru.normacontrol.application.dto.request.RegisterRequest;
 import ru.normacontrol.application.dto.response.AuthResponse;
 import ru.normacontrol.application.usecase.AuthUseCase;
 import ru.normacontrol.infrastructure.audit.AuditLogged;
-import ru.normacontrol.infrastructure.security.JwtTokenProvider;
 
 /**
  * REST controller for authentication operations.
@@ -22,7 +21,6 @@ import ru.normacontrol.infrastructure.security.JwtTokenProvider;
 public class AuthController {
 
     private final AuthUseCase authUseCase;
-    private final JwtTokenProvider jwtTokenProvider;
 
     /**
      * Register a new user.

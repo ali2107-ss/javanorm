@@ -1,0 +1,33 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-roles
+      author: normacontrol
+      changes:
+        - createTable:
+            tableName: roles
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+                    unique: true
+        - insert:
+            tableName: roles
+            columns:
+              - column: { name: name, value: ROLE_USER }
+        - insert:
+            tableName: roles
+            columns:
+              - column: { name: name, value: ROLE_REVIEWER }
+        - insert:
+            tableName: roles
+            columns:
+              - column: { name: name, value: ROLE_ADMIN }
