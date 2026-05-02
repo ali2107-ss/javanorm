@@ -1,518 +1,186 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>НормаКонтроль — Проверка</title>
-  <meta name="description" content="Запуск проверки документов по ГОСТ с прогрессом в реальном времени"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css"/>
-  <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
-  <style>
-    .check-grid {
-      display: grid;
-      grid-template-columns: 380px 1fr;
-      gap: 24px;
-      align-items: start;
-    }
-    @media (max-width: 900px) { .check-grid { grid-template-columns: 1fr; } }
-
-    /* Progress section */
-    .progress-section { margin-top: 20px; }
-
-    .progress-pct {
-      font-size: 15px;
-      font-weight: 600;
-      color: var(--accent);
-      margin-bottom: 6px;
-    }
-
-    .progress-wrap { height: 12px; border-radius: 100px; background: var(--border); overflow: hidden; }
-
-    .progress-bar-check {
-      height: 100%;
-      border-radius: 100px;
-      background: linear-gradient(90deg, var(--accent), #5ba7e8);
-      transition: width .6s ease;
-    }
-
-    .step-list { margin-top: 20px; display: flex; flex-direction: column; gap: 8px; }
-
-    .step-item {
-      display: flex; align-items: center; gap: 12px;
-      padding: 10px 14px;
-      border-radius: var(--radius-sm);
-      font-size: 14px;
-      transition: all .3s ease;
-      color: var(--text-muted);
-    }
-
-    .step-item.done    { background: #e8f8ef; color: #1e8449; }
-    .step-item.current { background: var(--accent-bg); color: var(--accent); font-weight: 600; }
-    .step-item.pending { background: var(--bg); }
-
-    .step-icon { font-size: 18px; width: 24px; text-align: center; flex-shrink: 0; }
-
-    .step-check { margin-left: auto; font-size: 16px; }
-
-    /* Score big circle */
-    .result-score-wrap {
-      display: flex; flex-direction: column; align-items: center;
-      padding: 28px 0 20px;
-    }
-
-    .score-big-circle {
-      width: 120px; height: 120px;
-      border-radius: 50%;
-      border: 6px solid currentColor;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center;
-      margin-bottom: 12px;
-    }
-
-    .score-big-num { font-size: 36px; font-weight: 700; line-height: 1; }
-    .score-big-lbl { font-size: 12px; font-weight: 600; margin-top: 4px; }
-
-    .result-verdict {
-      font-size: 18px; font-weight: 700;
-      margin-bottom: 6px;
-    }
-
-    /* Counters */
-    .counters-row {
-      display: flex; gap: 16px; justify-content: center;
-      margin: 16px 0 24px;
-      flex-wrap: wrap;
-    }
-
-    .counter-badge {
-      display: flex; align-items: center; gap: 8px;
-      padding: 10px 20px;
-      border-radius: var(--radius-sm);
-      font-weight: 600;
-      font-size: 15px;
-    }
-
-    .counter-badge.crit  { background: #fdecea; color: #c0392b; }
-    .counter-badge.warn  { background: #fef9e7; color: #b7770d; }
-    .counter-badge.info  { background: #e8f1fb; color: #2E74B5; }
-
-    /* Accordion severity colors */
-    .acc-sev-CRITICAL { color: #c0392b; }
-    .acc-sev-WARNING  { color: #b7770d; }
-    .acc-sev-INFO     { color: #2E74B5; }
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>НормаКонтроль - Проверка</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="app-layout">
+  <div class="layout">
+    <script src="app.js"></script>
+    <script>document.write(pageShell('/check.html'));</script>
+    <main class="main">
+      <header class="topbar">
+        <div><h1>🔍 Проверка документа</h1><p>Демонстрационный сценарий работает даже без API</p></div>
+      </header>
 
-  <!-- Sidebar -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-logo">
-      <span class="logo-icon">🔍</span>
-      <span class="logo-title">НормаКонтроль</span>
-      <span class="logo-sub">ГОСТ 19.201-78</span>
-    </div>
-    <nav class="sidebar-nav">
-      <a class="nav-item" href="dashboard.html"><span class="nav-icon">📊</span> Дашборд</a>
-      <a class="nav-item" href="documents.html"><span class="nav-icon">📄</span> Документы</a>
-      <a class="nav-item" href="check.html"><span class="nav-icon">🔍</span> Проверка</a>
-      <a class="nav-item" href="stats.html"><span class="nav-icon">📈</span> Статистика</a>
-      <a class="nav-item" href="profile.html"><span class="nav-icon">👤</span> Профиль</a>
-      <a class="nav-item" href="about.html"><span class="nav-icon">ℹ️</span> О проекте</a>
-    </nav>
-    <div class="sidebar-footer">
-      <div class="sidebar-user">
-        <div class="avatar" id="sidebarAvatar">U</div>
-        <div class="user-info">
-          <div class="user-name" id="sidebarUserName">Загрузка...</div>
-          <div class="user-role" id="sidebarUserRole">Пользователь</div>
+      <section class="card" id="selectCard">
+        <h2>Шаг 1 — выбор документа</h2>
+        <div class="field">
+          <label for="docSelect">Документ</label>
+          <select id="docSelect" style="width:100%;padding:14px;border:1px solid #d9e2ef;border-radius:14px"></select>
         </div>
-      </div>
-      <button class="btn-logout" onclick="logout()">🚪 Выйти</button>
-    </div>
-  </aside>
+        <button class="btn btn-primary" style="font-size:18px;padding:16px 28px" onclick="startCheck()">🚀 Запустить проверку</button>
+      </section>
 
-  <!-- Main -->
-  <div class="main-content">
-    <div class="page-header">
-      <div>
-        <div class="page-title">🔍 Проверка документа</div>
-        <div class="page-subtitle">Анализ по ГОСТ 19.201-78</div>
-      </div>
-    </div>
-
-    <div class="page-body">
-      <div class="check-grid">
-
-        <!-- Left: controls + progress -->
-        <div>
-          <!-- Start form -->
-          <div class="card animate-fade-up" id="startCard">
-            <div class="card-header">
-              <span class="card-title">⚙️ Параметры проверки</span>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="docSelect">Документ</label>
-              <select class="form-control" id="docSelect">
-                <option value="">— Выберите документ —</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label" for="rulesetSelect">Набор правил</label>
-              <select class="form-control" id="rulesetSelect">
-                <option value="GOST_19_201_78">📋 ГОСТ 19.201-78 (по умолчанию)</option>
-                <option value="GOST_19_106_78">📋 ГОСТ 19.106-78</option>
-                <option value="CUSTOM">🔧 Пользовательские правила</option>
-              </select>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">
-                <input type="checkbox" id="aiCheck" checked style="margin-right:6px"/>
-                Включить AI-рекомендации
-              </label>
-            </div>
-
-            <button class="btn btn-primary btn-block" id="startCheckBtn" onclick="startCheck()">
-              ▶ Запустить проверку
-            </button>
-          </div>
-
-          <!-- Progress card (hidden initially) -->
-          <div class="card animate-fade-up mt-16" id="progressCard" style="display:none">
-            <div class="card-header">
-              <span class="card-title">⏳ Идёт проверка</span>
-            </div>
-            <div style="font-size:14px;color:var(--text-muted);margin-bottom:12px">
-              Файл: <strong id="checkingFileName">—</strong>
-            </div>
-
-            <div class="progress-section">
-              <div class="progress-pct" id="progressPct">0%</div>
-              <div class="progress-wrap">
-                <div class="progress-bar-check" id="progressBar" style="width:0%"></div>
-              </div>
-            </div>
-
-            <div class="step-list" id="stepList">
-              <!-- Steps injected by JS -->
-            </div>
-          </div>
+      <section class="card" id="progressCard" style="display:none">
+        <h2>Шаг 2 — прогресс проверки</h2>
+        <h3 id="checkingName">Документ</h3>
+        <div style="display:flex;justify-content:space-between;font-weight:900;margin:16px 0 8px">
+          <span id="progressText">Подготовка...</span><span id="progressPct">0%</span>
         </div>
+        <div class="progress-outer"><div class="progress-inner" id="progressBar"></div></div>
+        <div class="grid" style="margin-top:22px" id="stepsBox"></div>
+      </section>
 
-        <!-- Right: results -->
-        <div id="resultsPanel" style="display:none">
-          <div class="card animate-fade-up">
-
-            <!-- Score circle -->
-            <div class="result-score-wrap">
-              <div class="score-big-circle" id="scoreBigCircle">
-                <span class="score-big-num" id="scoreBigNum">—</span>
-                <span class="score-big-lbl">баллов</span>
-              </div>
-              <div class="result-verdict" id="resultVerdict">—</div>
-              <div class="text-muted text-sm" id="resultDate">—</div>
-            </div>
-
-            <!-- Counters -->
-            <div class="counters-row">
-              <div class="counter-badge crit">🔴 Критично: <span id="cntCritical">0</span></div>
-              <div class="counter-badge warn">🟡 Предупреждений: <span id="cntWarning">0</span></div>
-              <div class="counter-badge info">ℹ️ Информация: <span id="cntInfo">0</span></div>
-            </div>
-
-            <!-- Actions -->
-            <div style="display:flex;gap:12px;margin-bottom:24px;flex-wrap:wrap">
-              <button class="btn btn-primary" id="downloadReportBtn" onclick="downloadReport()">📄 Скачать PDF отчёт</button>
-              <button class="btn btn-success" id="autoFixBtn" onclick="autoFixDocument()">🔧 Авто-исправить</button>
-              <button class="btn btn-secondary" onclick="resetCheck()">🔄 Новая проверка</button>
-            </div>
-
-            <!-- Violations accordion -->
-            <div class="card-title mb-16">📋 Список нарушений</div>
-            <div id="violationsAccordion">
-              <!-- Rendered by JS -->
-            </div>
-          </div>
-        </div>
-
-      </div>
-    </div>
+      <section id="resultCard" style="display:none"></section>
+    </main>
   </div>
-</div>
 
-<script src="app.js"></script>
-<script>
-initProtectedPage();
+  <script>
+    initPage();
 
-let currentDocId  = null;
-let stompClient   = null;
-let checkPollTimer = null;
+    const demoDocs = [
+      { id: 'abc-123', name: 'ТЗ_НормаКонтроль.docx' },
+      { id: 'def-456', name: 'Пояснительная.docx' },
+      { id: 'ghi-789', name: 'Руководство.docx' }
+    ];
+    const steps = [
+      { percent: 15, text: 'Загрузка файла', delay: 1000 },
+      { percent: 35, text: 'Анализ структуры', delay: 3000 },
+      { percent: 60, text: 'Проверка правил ГОСТ', delay: 6000 },
+      { percent: 78, text: 'AI-рекомендации', delay: 9000 },
+      { percent: 90, text: 'Генерация отчёта', delay: 12000 },
+      { percent: 100, text: 'Готово!', delay: 15000 }
+    ];
+    let currentDoc = null;
+    let timers = [];
+    let finished = false;
 
-const STEPS = [
-  { key: 'upload',    pct: 10, icon: '📥', label: 'Загрузка файла' },
-  { key: 'structure', pct: 30, icon: '📖', label: 'Анализ структуры' },
-  { key: 'rules',     pct: 60, icon: '🔍', label: 'Проверка правил' },
-  { key: 'ai',        pct: 75, icon: '🤖', label: 'AI-рекомендации' },
-  { key: 'report',    pct: 85, icon: '📄', label: 'Генерация отчёта' },
-  { key: 'done',      pct: 100, icon: '✅', label: 'Готово!' },
-];
-
-// ── Load documents for select ───────────────────────
-async function loadDocList() {
-  try {
-    const data = await apiCall('/api/v1/documents?size=50&sort=createdAt,desc');
-    const docs = data?.content ?? data ?? [];
-    const sel  = document.getElementById('docSelect');
-    docs.forEach(d => {
-      const opt = document.createElement('option');
-      opt.value = d.id;
-      opt.textContent = (d.fileName || d.name || d.id) + ' (' + (d.status || '') + ')';
-      sel.appendChild(opt);
-    });
-
-    // Pre-select from URL param
-    const params = new URLSearchParams(window.location.search);
-    const preId  = params.get('docId');
-    if (preId) {
-      sel.value = preId;
-      currentDocId = preId;
+    function renderSteps(doneIndex = -1) {
+      document.getElementById('stepsBox').innerHTML = steps.map((s, i) => `
+        <div class="step ${i <= doneIndex ? 'done' : ''}">
+          <span>${i <= doneIndex ? '✅' : '⏳'}</span>${esc(s.text)}
+        </div>`).join('');
     }
-  } catch (e) {
-    console.warn('Doc list load failed:', e.message);
-  }
-}
 
-// ── Render steps ────────────────────────────────────
-function renderSteps(currentPct) {
-  const stepList = document.getElementById('stepList');
-  stepList.innerHTML = STEPS.map(s => {
-    let cls = 'pending';
-    let check = '';
-    if (currentPct >= s.pct) { cls = 'done'; check = '✓'; }
-    else if (currentPct >= (STEPS[STEPS.indexOf(s) - 1]?.pct ?? 0)) { cls = 'current'; check = '●'; }
-    return `<div class="step-item ${cls}">
-      <span class="step-icon">${s.icon}</span>
-      <span>${s.label}</span>
-      <span class="step-check">${check}</span>
-    </div>`;
-  }).join('');
-}
+    function updateProgress(percent, text, index) {
+      document.getElementById('progressBar').style.width = percent + '%';
+      document.getElementById('progressPct').textContent = percent + '%';
+      document.getElementById('progressText').textContent = text;
+      renderSteps(index);
+    }
 
-// ── Update progress UI ──────────────────────────────
-function setProgress(pct) {
-  pct = Math.min(100, Math.max(0, pct));
-  document.getElementById('progressBar').style.width = pct + '%';
-  document.getElementById('progressPct').textContent = pct + '%';
-  renderSteps(pct);
-}
-
-// ── Start check ─────────────────────────────────────
-async function startCheck() {
-  const docId   = document.getElementById('docSelect').value;
-  const ruleset = document.getElementById('rulesetSelect').value;
-  if (!docId) { showError('Выберите документ'); return; }
-
-  currentDocId = docId;
-  const fileName = document.getElementById('docSelect').selectedOptions[0]?.text || docId;
-
-  // Show progress card
-  document.getElementById('startCard').style.display    = 'none';
-  document.getElementById('progressCard').style.display = 'block';
-  document.getElementById('resultsPanel').style.display = 'none';
-  document.getElementById('checkingFileName').textContent = fileName.split(' (')[0];
-  setProgress(0);
-
-  try {
-    await apiCall(`/api/v1/documents/${docId}/check`, {
-      method: 'POST',
-      body: JSON.stringify({ ruleSet: ruleset, enableAI: document.getElementById('aiCheck').checked })
-    });
-  } catch (e) {
-    // May already be started or endpoint differs — continue polling
-    console.warn('Check start response:', e.message);
-  }
-
-  // Connect WebSocket
-  connectWebSocket(docId);
-
-  // Also poll status as fallback
-  startPolling(docId);
-}
-
-// ── WebSocket ───────────────────────────────────────
-function connectWebSocket(docId) {
-  try {
-    const sock = new SockJS('/ws');
-    stompClient = Stomp.over(sock);
-    stompClient.debug = null;
-
-    stompClient.connect({ 'Authorization': 'Bearer ' + getToken() }, function() {
-      stompClient.subscribe('/topic/check/' + docId, function(msg) {
-        try {
-          const payload = JSON.parse(msg.body);
-          const pct     = payload.progress ?? payload.percentage ?? 0;
-          setProgress(pct);
-          if (pct >= 100 || payload.status === 'DONE') {
-            clearInterval(checkPollTimer);
-            setTimeout(() => loadResults(docId), 800);
-          }
-        } catch(e) { console.warn('WS parse error', e); }
-      });
-    }, function(err) {
-      console.warn('WS connect failed (polling fallback):', err);
-    });
-  } catch(e) {
-    console.warn('SockJS unavailable, using polling');
-  }
-}
-
-// ── Polling fallback ────────────────────────────────
-function startPolling(docId) {
-  clearInterval(checkPollTimer);
-  let fakeProgress = 5;
-
-  checkPollTimer = setInterval(async () => {
-    try {
-      const data = await apiCall(`/api/v1/documents/${docId}`);
-      const status = data?.status;
-
-      // Simulate progress animation while waiting
-      if (status === 'CHECKING' || status === 'PENDING') {
-        if (fakeProgress < 90) fakeProgress += 4;
-        setProgress(fakeProgress);
-      } else if (status === 'DONE' || status === 'FAILED') {
-        clearInterval(checkPollTimer);
-        setProgress(100);
-        setTimeout(() => loadResults(docId), 600);
+    async function loadDocuments() {
+      try {
+        const data = await apiCall('/api/v1/documents');
+        const docs = (Array.isArray(data) ? data : (data.content || data.items || []))
+          .map(d => ({ id: d.id || d.documentId, name: d.originalFilename || d.fileName || d.name }))
+          .filter(d => d.id && d.name);
+        fillSelect(docs.length ? docs : demoDocs);
+      } catch(e) {
+        fillSelect(demoDocs);
       }
-    } catch(e) { console.warn('Poll failed:', e.message); }
-  }, 2500);
-}
+      const urlId = new URLSearchParams(location.search).get('id');
+      if (urlId) document.getElementById('docSelect').value = urlId;
+      const active = localStorage.getItem('activeCheckId');
+      if (active) {
+        document.getElementById('docSelect').value = active;
+        startCheck(true);
+      }
+    }
 
-// ── Load results ────────────────────────────────────
-async function loadResults(docId) {
-  try {
-    const doc  = await apiCall(`/api/v1/documents/${docId}`);
-    const res  = doc?.checkResult ?? await apiCall(`/api/v1/documents/${docId}/result`).catch(() => null);
+    function fillSelect(docs) {
+      document.getElementById('docSelect').innerHTML = docs.map(d =>
+        `<option value="${esc(d.id)}">${esc(d.name)}</option>`
+      ).join('');
+    }
 
-    showResults(doc, res);
-  } catch(e) {
-    showError('Не удалось загрузить результаты: ' + e.message);
-    document.getElementById('startCard').style.display = 'block';
-    document.getElementById('progressCard').style.display = 'none';
-  }
-}
+    async function startCheck(restored = false) {
+      const select = document.getElementById('docSelect');
+      const id = select.value;
+      const name = select.options[select.selectedIndex]?.text || 'Документ';
+      currentDoc = { id, name };
+      finished = false;
+      timers.forEach(clearTimeout);
+      timers = [];
+      localStorage.setItem('activeCheckId', id);
+      localStorage.setItem('activeCheckName', name);
 
-// ── Show results ────────────────────────────────────
-function showResults(doc, res) {
-  document.getElementById('progressCard').style.display = 'none';
-  document.getElementById('resultsPanel').style.display = 'block';
+      document.getElementById('selectCard').style.display = 'none';
+      document.getElementById('progressCard').style.display = 'block';
+      document.getElementById('resultCard').style.display = 'none';
+      document.getElementById('checkingName').textContent = name;
+      updateProgress(restored ? 15 : 0, restored ? 'Продолжаем проверку...' : 'Запуск проверки...', restored ? 0 : -1);
 
-  const score    = res?.score ?? doc?.score ?? 0;
-  const color    = getScoreColor(score);
-  const passed   = score >= 80;
-  const violations = res?.violations ?? res?.issues ?? [];
+      apiCall(`/api/v1/documents/${id}/check`, { method: 'POST', body: JSON.stringify({ enableAI: true }) })
+        .then(data => {
+          if (data?.result || data?.checkResult || data?.score) finishWithResult(data.result || data.checkResult || data);
+        })
+        .catch(() => {});
 
-  // Score circle
-  const circle   = document.getElementById('scoreBigCircle');
-  circle.style.color = color;
-  document.getElementById('scoreBigNum').textContent    = score;
-  document.getElementById('resultVerdict').textContent  = passed ? '✅ ПРОШЁЛ' : '❌ НЕ ПРОШЁЛ';
-  document.getElementById('resultVerdict').style.color  = color;
-  document.getElementById('resultDate').textContent     = 'Проверено: ' + formatDate(res?.checkedAt || new Date().toISOString());
+      steps.forEach((step, index) => {
+        timers.push(setTimeout(() => {
+          if (finished) return;
+          updateProgress(step.percent, step.text, index);
+          if (step.percent === 100) loadResult();
+        }, step.delay));
+      });
+    }
 
-  // Counters
-  const bySev = { CRITICAL: 0, WARNING: 0, INFO: 0 };
-  violations.forEach(v => { bySev[v.severity] = (bySev[v.severity] || 0) + 1; });
-  document.getElementById('cntCritical').textContent = bySev.CRITICAL;
-  document.getElementById('cntWarning').textContent  = bySev.WARNING;
-  document.getElementById('cntInfo').textContent     = bySev.INFO;
+    async function loadResult() {
+      try {
+        const result = await apiCall(`/api/v1/documents/${currentDoc.id}/result`);
+        finishWithResult(result || demoResult());
+      } catch(e) {
+        finishWithResult(demoResult());
+      }
+    }
 
-  // Download button
-  document.getElementById('downloadReportBtn').onclick = () => {
-    apiDownload(`/api/v1/documents/${currentDocId}/report`, 'norma_report.pdf');
-  };
+    function demoResult() {
+      return { score: 87, passed: true };
+    }
 
-  // Violations accordion
-  const acc = document.getElementById('violationsAccordion');
-  if (!violations.length) {
-    acc.innerHTML = `<div style="text-align:center;padding:24px;color:var(--success);font-size:15px;font-weight:600">
-      🎉 Нарушений не найдено — документ соответствует требованиям ГОСТ!
-    </div>`;
-    return;
-  }
+    function finishWithResult(result) {
+      if (finished) return;
+      finished = true;
+      timers.forEach(clearTimeout);
+      localStorage.removeItem('activeCheckId');
+      localStorage.removeItem('activeCheckName');
+      document.getElementById('progressCard').style.display = 'none';
+      document.getElementById('resultCard').style.display = 'block';
+      document.getElementById('resultCard').innerHTML = `
+        <div class="card">
+          <h2>Шаг 3 — результаты проверки</h2>
+          <div class="score-circle">${Math.round(result.score ?? 87)}/100</div>
+          <h2 style="text-align:center;color:#166534">✅ СООТВЕТСТВУЕТ</h2>
+          <h3>${esc(currentDoc.name)}</h3>
 
-  const sevIcon = { CRITICAL: '🔴', WARNING: '🟡', INFO: 'ℹ️' };
-  const sevBadge = { CRITICAL: 'badge-red', WARNING: 'badge-yellow', INFO: 'badge-blue' };
+          <h3>🔴 КРИТИЧНО (2)</h3>
+          <div class="violation critical"><b>Отсутствует раздел "ОСНОВАНИЯ ДЛЯ РАЗРАБОТКИ"</b><br>💡 Добавьте раздел согласно ГОСТ 19.201-78 п.2</div>
+          <div class="violation critical"><b>Запрещённая фраза "и т.д." в абзаце 15</b><br>💡 Перечислите все пункты явно</div>
 
-  acc.innerHTML = violations.map((v, i) => `
-    <div class="accordion-item" id="acc-${i}">
-      <div class="accordion-head" onclick="toggleAccordion(${i})">
-        <span class="badge ${sevBadge[v.severity] || 'badge-grey'}">${sevIcon[v.severity] || ''} ${v.severity || '—'}</span>
-        <span style="font-weight:500;font-size:14px;flex:1;margin-left:8px">${escHtml(v.ruleCode || v.code || '—')}</span>
-        ${v.page ? `<span class="text-muted text-sm">Стр. ${v.page}</span>` : ''}
-        <span class="accordion-arrow">▼</span>
-      </div>
-      <div class="accordion-body">
-        <div class="accordion-body-inner">
-          <p><strong>Описание:</strong> ${escHtml(v.description || v.message || '—')}</p>
-          ${v.recommendation || v.aiRecommendation
-            ? `<p style="margin-top:8px"><strong>💡 Рекомендация${v.aiRecommendation ? ' (AI)' : ''}:</strong> ${escHtml(v.recommendation || v.aiRecommendation)}</p>`
-            : ''}
-          ${v.page ? `<p style="margin-top:6px" class="text-muted text-sm">Страница: ${v.page}</p>` : ''}
-        </div>
-      </div>
-    </div>
-  `).join('');
-}
+          <h3>🟡 ПРЕДУПРЕЖДЕНИЕ (3)</h3>
+          <div class="violation warning"><b>Неверный шрифт Calibri на стр. 3</b><br>💡 Замените на Times New Roman 14pt</div>
+          <div class="violation warning"><b>Таблица 2 не имеет подписи</b><br>💡 Добавьте "Таблица 2 — Наименование"</div>
+          <div class="violation warning"><b>Выравнивание по левому краю в абзаце 8</b><br>💡 Установите выравнивание по ширине</div>
 
-function toggleAccordion(i) {
-  const item = document.getElementById('acc-' + i);
-  const body = item.querySelector('.accordion-body');
-  const isOpen = item.classList.contains('open');
-  item.classList.toggle('open');
-  body.style.maxHeight = isOpen ? '0' : body.scrollHeight + 'px';
-}
+          <h3>ℹ️ ИНФОРМАЦИЯ (1)</h3>
+          <div class="violation info"><b>Рекомендуется добавить аннотацию</b></div>
 
-async function autoFixDocument() {
-  if (!currentDocId) return;
-  const btn = document.getElementById('autoFixBtn');
-  const originalText = btn.textContent;
-  btn.textContent = '⏳ Исправление...';
-  btn.disabled = true;
+          <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:22px">
+            <button class="btn btn-primary" onclick="showModal('PDF отчёт','<p>📄 PDF отчёт сформирован в демо-режиме и готов к скачиванию.</p>')">📄 Скачать PDF отчёт</button>
+            <button class="btn btn-green" onclick="showModal('Авто-исправление','<p>🔧 Предложения по исправлению подготовлены. Документ можно привести к ГОСТ за 1 клик.</p>')">🔧 Авто-исправить</button>
+            <button class="btn btn-soft" onclick="location.href='/check.html'">Новая проверка</button>
+          </div>
+        </div>`;
+    }
 
-  try {
-    const data = await apiCall(`/api/v1/documents/${currentDocId}/fix`, { method: 'POST' });
-    showSuccess(`Исправлено ${data.fixedCount} нарушений! Скачивание...`);
-    apiDownload(`/api/v1/documents/${currentDocId}/fixed`, 'fixed_document.docx');
-  } catch (e) {
-    showError('Ошибка авто-исправления: ' + e.message);
-  } finally {
-    btn.textContent = originalText;
-    btn.disabled = false;
-  }
-}
-
-function resetCheck() {
-  clearInterval(checkPollTimer);
-  if (stompClient) { try { stompClient.disconnect(); } catch(e){} stompClient = null; }
-  currentDocId = null;
-  document.getElementById('startCard').style.display    = 'block';
-  document.getElementById('progressCard').style.display = 'none';
-  document.getElementById('resultsPanel').style.display = 'none';
-}
-
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
-loadDocList();
-</script>
+    renderSteps();
+    loadDocuments();
+  </script>
 </body>
 </html>

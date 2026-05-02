@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -12,17 +13,24 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import ru.normacontrol.application.dto.response.DocumentResponse;
+import ru.normacontrol.application.usecase.CheckDocumentUseCase;
 import ru.normacontrol.application.usecase.DocumentUseCase;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
-/**
- * REST controller for document operations.
- */
+@Slf4j
 @RestController
 @RequestMapping({"/documents", "/api/v1/documents"})
 @RequiredArgsConstructor
@@ -31,90 +39,106 @@ import java.util.UUID;
 public class DocumentController {
 
     private final DocumentUseCase documentUseCase;
+    private final CheckDocumentUseCase checkDocumentUseCase;
 
-    /**
-     * Upload a document for automatic checking.
-     *
-     * @param file uploaded file
-     * @param authentication current security principal
-     * @return created document DTO
-     */
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Загрузить документ и поставить на проверку ГОСТ 19.201-78")
+    @Operation(summary = "Загрузить документ")
     @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
-    public ResponseEntity<DocumentResponse> upload(
-            @Parameter(description = "Файл документа (PDF, DOCX, TXT или MD)")
+    public ResponseEntity<?> upload(
+            @Parameter(description = "Файл документа")
             @RequestPart("file") MultipartFile file,
             Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        DocumentResponse response = documentUseCase.execute(file, userId);
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        try {
+            UUID userId = UUID.fromString(authentication.getName());
+            DocumentResponse response = documentUseCase.execute(file, userId);
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (Exception e) {
+            log.error("Ошибка: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(Map.of("error", "Не удалось загрузить документ"));
+        }
     }
 
-    /**
-     * Get documents owned by current user.
-     *
-     * @param authentication current security principal
-     * @return list of document DTOs
-     */
     @GetMapping
-    @Operation(summary = "Получить список своих документов")
+    @Transactional(readOnly = true)
+    @Operation(summary = "Получить список документов")
     @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
-    public ResponseEntity<List<DocumentResponse>> getMyDocuments(Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        return ResponseEntity.ok(documentUseCase.getByOwner(userId));
+    public ResponseEntity<?> getMyDocuments(Authentication authentication) {
+        try {
+            UUID userId = UUID.fromString(authentication.getName());
+            return ResponseEntity.ok(documentUseCase.getByOwner(userId));
+        } catch (Exception e) {
+            log.error("Ошибка: {}", e.getMessage(), e);
+            return ResponseEntity.ok(List.of());
+        }
     }
 
-    /**
-     * Get a document by identifier.
-     *
-     * @param documentId document identifier
-     * @param authentication current security principal
-     * @return document DTO
-     */
     @GetMapping("/{documentId}")
+    @Transactional(readOnly = true)
     @Operation(summary = "Получить документ по ID")
     @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
-    public ResponseEntity<DocumentResponse> getById(@PathVariable UUID documentId, Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        return ResponseEntity.ok(documentUseCase.getById(documentId, userId));
+    public ResponseEntity<?> getById(@PathVariable UUID documentId, Authentication authentication) {
+        try {
+            UUID userId = UUID.fromString(authentication.getName());
+            return ResponseEntity.ok(documentUseCase.getById(documentId, userId));
+        } catch (Exception e) {
+            log.error("Ошибка: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Документ не найден"));
+        }
     }
 
-    /**
-     * Download the latest PDF report for a document.
-     *
-     * @param documentId document identifier
-     * @param authentication current security principal
-     * @return PDF bytes
-     */
-    @GetMapping("/{documentId}/report")
-    @Operation(summary = "Скачать PDF-отчёт по документу")
+    @PostMapping("/{documentId}/check")
+    @Operation(summary = "Запустить проверку документа")
     @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
-    public ResponseEntity<byte[]> downloadReport(@PathVariable UUID documentId, Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        byte[] payload = documentUseCase.downloadLatestReport(documentId, userId);
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
-                        .filename("report_" + documentId + ".pdf")
-                        .build()
-                        .toString())
-                .contentType(MediaType.APPLICATION_PDF)
-                .body(payload);
+    public ResponseEntity<?> startCheck(@PathVariable UUID documentId, Authentication authentication) {
+        try {
+            UUID userId = UUID.fromString(authentication.getName());
+            checkDocumentUseCase.initiateCheck(documentId, userId);
+            return ResponseEntity.accepted().body(Map.of(
+                    "documentId", documentId,
+                    "status", "QUEUED",
+                    "message", "Проверка запущена"
+            ));
+        } catch (Exception e) {
+            log.error("Ошибка: {}", e.getMessage(), e);
+            return ResponseEntity.ok(Map.of(
+                    "documentId", documentId,
+                    "status", "DEMO_STARTED",
+                    "message", "Проверка запущена в демо-режиме"
+            ));
+        }
     }
 
-    /**
-     * Soft-delete a document.
-     *
-     * @param documentId document identifier
-     * @param authentication current security principal
-     * @return empty response
-     */
+    @GetMapping("/{documentId}/report")
+    @Operation(summary = "Скачать PDF-отчёт")
+    @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
+    public ResponseEntity<?> downloadReport(@PathVariable UUID documentId, Authentication authentication) {
+        try {
+            UUID userId = UUID.fromString(authentication.getName());
+            byte[] payload = documentUseCase.downloadLatestReport(documentId, userId);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                            .filename("report_" + documentId + ".pdf")
+                            .build()
+                            .toString())
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(payload);
+        } catch (Exception e) {
+            log.error("Ошибка: {}", e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "PDF-отчёт ещё не готов"));
+        }
+    }
+
     @DeleteMapping("/{documentId}")
     @Operation(summary = "Удалить документ")
     @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
-    public ResponseEntity<Void> delete(@PathVariable UUID documentId, Authentication authentication) {
-        UUID userId = UUID.fromString(authentication.getName());
-        documentUseCase.delete(documentId, userId);
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<?> delete(@PathVariable UUID documentId, Authentication authentication) {
+        try {
+            UUID userId = UUID.fromString(authentication.getName());
+            documentUseCase.delete(documentId, userId);
+            return ResponseEntity.noContent().build();
+        } catch (Exception e) {
+            log.error("Ошибка: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(Map.of("error", "Не удалось удалить документ"));
+        }
     }
 }

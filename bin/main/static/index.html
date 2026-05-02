@@ -1,377 +1,80 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>НормаКонтроль — Вход</title>
-  <meta name="description" content="Вход в систему проверки документов НормаКонтроль по ГОСТ 19.201-78"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css"/>
-  <style>
-    body {
-      background: linear-gradient(135deg, #0f1e36 0%, #1F3864 50%, #163057 100%);
-      min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-    }
-
-    .login-wrap {
-      width: 100%;
-      max-width: 420px;
-      animation: fadeUp .5s ease both;
-    }
-
-    .login-logo {
-      text-align: center;
-      margin-bottom: 32px;
-    }
-
-    .login-logo .logo-icon-big { font-size: 48px; display: block; margin-bottom: 8px; }
-
-    .login-logo h1 {
-      font-size: 26px;
-      font-weight: 700;
-      color: #fff;
-      margin-bottom: 6px;
-    }
-
-    .login-logo p {
-      font-size: 13px;
-      color: rgba(255,255,255,.55);
-      max-width: 300px;
-      margin: 0 auto;
-      line-height: 1.5;
-    }
-
-    .login-card {
-      background: rgba(255,255,255,.97);
-      backdrop-filter: blur(12px);
-      border-radius: 16px;
-      padding: 36px 36px 32px;
-      box-shadow: 0 20px 60px rgba(0,0,0,.35);
-    }
-
-    .login-card h2 {
-      font-size: 18px;
-      font-weight: 700;
-      margin-bottom: 24px;
-      color: var(--text);
-    }
-
-    .divider {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin: 20px 0;
-      color: var(--text-muted);
-      font-size: 13px;
-    }
-
-    .divider::before, .divider::after {
-      content: '';
-      flex: 1;
-      height: 1px;
-      background: var(--border);
-    }
-
-    .btn-github {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      width: 100%;
-      padding: 11px 20px;
-      border: 1.5px solid var(--border);
-      border-radius: var(--radius-sm);
-      background: #24292e;
-      color: #fff;
-      font-family: inherit;
-      font-size: 14px;
-      font-weight: 500;
-      cursor: pointer;
-      text-decoration: none;
-      transition: all var(--transition);
-    }
-
-    .btn-github:hover { background: #1a1f24; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.2); }
-
-    .btn-github svg { width: 20px; height: 20px; fill: #fff; }
-
-    .register-link {
-      text-align: center;
-      margin-top: 20px;
-      font-size: 13px;
-      color: var(--text-muted);
-    }
-
-    .register-link a {
-      color: var(--accent);
-      text-decoration: none;
-      font-weight: 500;
-    }
-
-    .register-link a:hover { text-decoration: underline; }
-
-    .error-msg {
-      background: #fdecea;
-      border: 1px solid #f5c6c2;
-      color: #c0392b;
-      border-radius: var(--radius-sm);
-      padding: 11px 14px;
-      font-size: 13px;
-      margin-top: 14px;
-      display: none;
-      animation: fadeIn .3s ease;
-    }
-
-    .error-msg.visible { display: flex; align-items: center; gap: 8px; }
-
-    .btn-login {
-      position: relative;
-      overflow: hidden;
-    }
-
-    .btn-login .btn-spinner {
-      display: none;
-      width: 18px; height: 18px;
-      border: 2px solid rgba(255,255,255,.4);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin .6s linear infinite;
-    }
-
-    .btn-login.loading .btn-text { display: none; }
-    .btn-login.loading .btn-spinner { display: block; }
-
-    .particles {
-      position: fixed;
-      top: 0; left: 0;
-      width: 100%; height: 100%;
-      pointer-events: none;
-      overflow: hidden;
-      z-index: 0;
-    }
-
-    .particle {
-      position: absolute;
-      width: 4px; height: 4px;
-      background: rgba(255,255,255,.15);
-      border-radius: 50%;
-      animation: float linear infinite;
-    }
-
-    @keyframes float {
-      0%   { transform: translateY(100vh) scale(0); opacity: 0; }
-      10%  { opacity: 1; }
-      90%  { opacity: 1; }
-      100% { transform: translateY(-10vh) scale(1); opacity: 0; }
-    }
-
-    .login-wrap { position: relative; z-index: 1; }
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>НормаКонтроль - Вход</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
-<body>
-
-<!-- Background particles -->
-<div class="particles" id="particles"></div>
-
-<div class="login-wrap">
-  <div class="login-logo">
-    <span class="logo-icon-big">🔍</span>
-    <h1>НормаКонтроль</h1>
-    <p>Система проверки документов по ГОСТ 19.201-78</p>
-  </div>
-
-  <div class="login-card">
-    <h2>Добро пожаловать</h2>
-
-    <form id="loginForm" novalidate>
-      <div class="form-group">
-        <label class="form-label" for="email">Email</label>
-        <input
-          class="form-control" type="email" id="email"
-          placeholder="user@example.com" autocomplete="email" required/>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label" for="password">Пароль</label>
-        <div class="input-group">
-          <input
-            class="form-control" type="password" id="password"
-            placeholder="••••••••" autocomplete="current-password" required/>
-          <button type="button" class="input-btn" id="togglePwd" title="Показать/скрыть пароль">👁</button>
-        </div>
-      </div>
-
-      <button type="submit" class="btn btn-primary btn-block btn-login" id="loginBtn">
-        <span class="btn-text">Войти</span>
-        <div class="btn-spinner"></div>
-      </button>
-
-      <div class="error-msg" id="errorMsg">
-        <span>⚠️</span>
-        <span id="errorText">Неверный email или пароль</span>
-      </div>
-    </form>
-
-    <div id="oauthBlock">
-    <div class="divider">или</div>
-    <a href="/oauth2/authorization/github" class="btn-github">
-      <svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
-      Войти через GitHub
-    </a>
+<body class="login-page">
+  <main class="login-card">
+    <div class="login-logo">
+      <span class="icon">🔍</span>
+      <h1>НормаКонтроль</h1>
+      <p>Проверка документов по ГОСТ 19.201-78</p>
     </div>
 
-    <div class="register-link">
-      Нет аккаунта? <a href="#" id="registerLink">Зарегистрироваться</a>
+    <div class="field">
+      <label for="email">Email</label>
+      <div class="input-wrap"><span>✉️</span><input id="email" type="email" value="admin@demo.ru" autocomplete="username"></div>
+    </div>
+    <div class="field">
+      <label for="password">Пароль</label>
+      <div class="input-wrap"><span>🔒</span><input id="password" type="password" value="Admin1234!" autocomplete="current-password"></div>
     </div>
 
-    <!-- Демо-доступ -->
-    <div style="margin-top: 32px; padding: 20px; background: rgba(0,0,0,0.03); border-radius: 12px; border: 1px dashed rgba(0,0,0,0.1);">
-      <h3 style="font-size: 14px; margin-bottom: 16px; color: var(--text); text-align: center;">Быстрый вход для демонстрации</h3>
-      <div style="display: flex; flex-direction: column; gap: 8px;">
-        <button type="button" class="btn btn-secondary btn-block" id="btnAdmin" style="justify-content: flex-start; gap: 10px;">
-          👑 Войти как Админ
-        </button>
-        <button type="button" class="btn btn-secondary btn-block" id="btnStudent" style="justify-content: flex-start; gap: 10px;">
-          👤 Войти как Студент
-        </button>
-      </div>
+    <div class="error-box" id="errorBox"></div>
+    <button class="btn btn-primary btn-full" onclick="login()">Войти</button>
+
+    <div style="text-align:center;color:#6b7280;margin-top:24px;font-weight:800">Быстрый вход</div>
+    <div class="quick-login">
+      <button class="btn btn-soft" onclick="quickLogin('admin@demo.ru','Admin1234!')">👑 Админ</button>
+      <button class="btn btn-soft" onclick="quickLogin('user@demo.ru','User1234!')">👤 Студент</button>
     </div>
-  </div>
-</div>
+  </main>
 
-<script src="app.js"></script>
-<script>
-  // Redirect if already logged in
-  if (getToken()) window.location.href = '/dashboard.html';
-
-  fetch('/api/v1/system/status')
-    .then(resp => resp.ok ? resp.json() : null)
-    .then(data => {
-      const oauthBlock = document.getElementById('oauthBlock');
-      if (oauthBlock && (!data || data.oauth2Enabled === false)) {
-        oauthBlock.style.display = 'none';
-      }
-    })
-    .catch(() => {
-      const oauthBlock = document.getElementById('oauthBlock');
-      if (oauthBlock) oauthBlock.style.display = 'none';
-    });
-
-  // ── Particles ──────────────────────────────────────
-  (function() {
-    const container = document.getElementById('particles');
-    for (let i = 0; i < 25; i++) {
-      const p = document.createElement('div');
-      p.className = 'particle';
-      p.style.left     = Math.random() * 100 + '%';
-      p.style.width    = p.style.height = (Math.random() * 4 + 2) + 'px';
-      p.style.animationDuration = (Math.random() * 12 + 8) + 's';
-      p.style.animationDelay   = (Math.random() * 10) + 's';
-      container.appendChild(p);
-    }
-  })();
-
-  // ── Toggle password ────────────────────────────────
-  document.getElementById('togglePwd').addEventListener('click', function() {
-    const inp = document.getElementById('password');
-    const isText = inp.type === 'text';
-    inp.type = isText ? 'password' : 'text';
-    this.textContent = isText ? '👁' : '🙈';
-  });
-
-  // ── Register link (placeholder) ────────────────────
-  document.getElementById('registerLink').addEventListener('click', function(e) {
-    e.preventDefault();
-    showInfo('Регистрация через администратора. Свяжитесь с вашим руководителем.');
-  });
-
-  function showLoginError(message) {
-    const errEl = document.getElementById('errorMsg');
-    const errText = document.getElementById('errorText');
-    errText.textContent = message;
-    errEl.classList.add('visible');
-  }
-
-  async function submitLogin(payload) {
-    return fetch('/api/v1/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  }
-
-  async function login() {
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value.trim();
-    const btn = document.getElementById('loginBtn');
-    const errEl = document.getElementById('errorMsg');
-
-    if (!email || !password) {
-      showLoginError('Введите email и пароль');
-      return;
+  <script src="app.js"></script>
+  <script>
+    function showError(text) {
+      const box = document.getElementById('errorBox');
+      box.textContent = text;
+      box.style.display = 'block';
     }
 
-    errEl.classList.remove('visible');
-    btn.classList.add('loading');
-    btn.disabled = true;
+    function quickLogin(email, password) {
+      document.getElementById('email').value = email;
+      document.getElementById('password').value = password;
+      login();
+    }
 
-    try {
-      const attempts = [
-        { login: email, password: password },
-        { username: email, password: password },
-        { email: email, password: password }
-      ];
+    async function login() {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value.trim();
+      document.getElementById('errorBox').style.display = 'none';
 
-      let response = null;
-      for (const payload of attempts) {
-        response = await submitLogin(payload);
-        if (response.ok) break;
-      }
-
-      if (!response || !response.ok) {
-        showLoginError('Неверный email или пароль');
+      if (!email || !password) {
+        showError('Введите email и пароль');
         return;
       }
 
-      const data = await response.json();
-      const token = data.accessToken || data.access_token || data.token;
-      if (!token) {
-        showLoginError('Неверный ответ сервера');
-        return;
+      try {
+        const response = await fetch('/api/v1/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ login: email, password: password })
+        });
+        if (!response.ok) throw new Error('Неверный email или пароль');
+        const data = await response.json();
+        const token = data.accessToken || data.access_token || data.token;
+        if (!token) throw new Error('Сервер не вернул JWT токен');
+        setToken(token);
+        window.location.href = '/dashboard.html';
+      } catch (e) {
+        showError(e.message || 'Ошибка входа');
       }
-
-      localStorage.setItem('jwt_token', token);
-      if (data.user) setUserInfo(data.user);
-      window.location.href = '/dashboard.html';
-    } catch (e) {
-      showLoginError('Ошибка подключения к серверу');
-    } finally {
-      btn.classList.remove('loading');
-      btn.disabled = false;
     }
-  }
-
-  document.getElementById('loginForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    await login();
-  });
-
-  document.getElementById('btnAdmin').onclick = async function() {
-    document.getElementById('email').value = 'admin@demo.ru';
-    document.getElementById('password').value = 'Admin1234!';
-    await login();
-  };
-
-  document.getElementById('btnStudent').onclick = async function() {
-    document.getElementById('email').value = 'user@demo.ru';
-    document.getElementById('password').value = 'User1234!';
-    await login();
-  };
-</script>
+  </script>
 </body>
 </html>

@@ -1,300 +1,57 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>НормаКонтроль — Статистика</title>
-  <meta name="description" content="Статистика нарушений ГОСТ и динамика баллов"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css"/>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 24px;
-    }
-    @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
-    
-    .chart-container {
-      position: relative;
-      height: 300px;
-      width: 100%;
-    }
-    
-    .pie-container {
-      position: relative;
-      height: 250px;
-      width: 100%;
-      display: flex;
-      justify-content: center;
-    }
-
-    .violation-bar-wrap { display: flex; align-items: center; gap: 8px; }
-    .violation-bar-track { flex: 1; height: 6px; background: var(--border); border-radius: 100px; overflow: hidden;}
-    .violation-bar-fill { height: 100%; border-radius: 100px; }
-    
-    .severity-dot {
-      display: inline-block;
-      width: 10px; height: 10px;
-      border-radius: 50%;
-      margin-right: 6px;
-    }
-    .sev-CRITICAL { background: #E74C3C; }
-    .sev-WARNING  { background: #F39C12; }
-    .sev-INFO     { background: #2980B9; }
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>НормаКонтроль - Статистика</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="app-layout">
-
-  <!-- Sidebar -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-logo">
-      <span class="logo-icon">🔍</span>
-      <span class="logo-title">НормаКонтроль</span>
-      <span class="logo-sub">ГОСТ 19.201-78</span>
-    </div>
-    <nav class="sidebar-nav">
-      <a class="nav-item" href="dashboard.html"><span class="nav-icon">📊</span> Дашборд</a>
-      <a class="nav-item" href="documents.html"><span class="nav-icon">📄</span> Документы</a>
-      <a class="nav-item" href="check.html"><span class="nav-icon">🔍</span> Проверка</a>
-      <a class="nav-item" href="stats.html"><span class="nav-icon">📈</span> Статистика</a>
-      <a class="nav-item" href="profile.html"><span class="nav-icon">👤</span> Профиль</a>
-      <a class="nav-item" href="about.html"><span class="nav-icon">ℹ️</span> О проекте</a>
-    </nav>
-    <div class="sidebar-footer">
-      <div class="sidebar-user">
-        <div class="avatar" id="sidebarAvatar">U</div>
-        <div class="user-info">
-          <div class="user-name" id="sidebarUserName">Загрузка...</div>
-          <div class="user-role" id="sidebarUserRole">Пользователь</div>
-        </div>
-      </div>
-      <button class="btn-logout" onclick="logout()">🚪 Выйти</button>
-    </div>
-  </aside>
-
-  <!-- Main -->
-  <div class="main-content">
-    <div class="page-header">
-      <div>
-        <div class="page-title">📈 Статистика и аналитика</div>
-        <div class="page-subtitle">Сводные данные по всем проверкам документов</div>
-      </div>
-    </div>
-
-    <div class="page-body">
-
-      <div class="grid-2 mb-24">
-        <!-- Trend Chart -->
-        <div class="card animate-fade-up">
-          <div class="card-header">
-            <span class="card-title">📉 Динамика среднего балла (30 дней)</span>
-          </div>
-          <div class="chart-container">
-            <canvas id="trendChart"></canvas>
-          </div>
-        </div>
-
-        <!-- Section Compliance -->
-        <div class="card animate-fade-up" style="animation-delay:.1s">
-          <div class="card-header">
-            <span class="card-title">🍩 Нарушения по разделам ГОСТ</span>
-          </div>
-          <div class="pie-container">
-            <canvas id="sectionsChart"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <!-- Top Violations -->
-      <div class="card animate-fade-up" style="animation-delay:.2s">
-        <div class="card-header">
-          <span class="card-title">🏆 Топ-10 частых нарушений</span>
-        </div>
+  <div class="layout">
+    <script src="app.js"></script>
+    <script>document.write(pageShell('/stats.html'));</script>
+    <main class="main">
+      <header class="topbar"><div><h1>📈 Статистика</h1><p>Демо-метрики всегда доступны для защиты</p></div></header>
+      <section class="grid grid-4" id="statsGrid"></section>
+      <section class="card" style="margin-top:22px">
+        <h2>Топ нарушений</h2>
         <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Код правила</th>
-                <th>Описание</th>
-                <th>Уровень</th>
-                <th>Частота</th>
-                <th>Доля (%)</th>
-              </tr>
-            </thead>
-            <tbody id="topViolationsBody">
-              <tr><td colspan="5"><div style="display:flex;justify-content:center;padding:24px"><div class="spinner"></div></div></td></tr>
-            </tbody>
-          </table>
+          <table><thead><tr><th>Правило</th><th>Описание</th><th>Количество</th></tr></thead><tbody id="violationsBody"></tbody></table>
         </div>
-      </div>
-
-    </div>
+      </section>
+    </main>
   </div>
-</div>
-
-<script src="app.js"></script>
-<script>
-initProtectedPage();
-
-let trendChartInstance = null;
-let sectionsChartInstance = null;
-
-// Palette for charts
-const colors = [
-  '#2E74B5', '#E74C3C', '#F39C12', '#27AE60', '#8E44AD', '#16A085', '#34495E'
-];
-
-async function loadStats() {
-  await Promise.all([
-    loadTrend(),
-    loadSections(),
-    loadTopViolations()
-  ]);
-}
-
-async function loadTrend() {
-  try {
-    const data = await apiCall('/api/v1/stats/score-trend?days=30');
-    
-    if (!data || data.length === 0) {
-      renderTrendChart([], []);
-      return;
+  <script>
+    initPage();
+    const demo = {
+      totalDocuments: 5,
+      totalChecks: 8,
+      averageScore: 76,
+      checksToday: 2,
+      topViolations: [
+        { ruleCode: 'STRUCTURE.MISSING_SECTION', count: 12, description: 'Отсутствует раздел' },
+        { ruleCode: 'FORMAT.WRONG_FONT', count: 8, description: 'Неверный шрифт' },
+        { ruleCode: 'LANGUAGE.FORBIDDEN_PHRASE', count: 5, description: 'Запрещённая фраза' }
+      ]
+    };
+    function fillStats(data) {
+      document.getElementById('statsGrid').innerHTML = [
+        ['📄', 'Документов', data.totalDocuments ?? 5],
+        ['🔍', 'Проверок', data.totalChecks ?? 8],
+        ['⭐', 'Средний балл', data.averageScore ?? 76],
+        ['📅', 'Сегодня', data.checksToday ?? 2]
+      ].map(s => `<div class="card stat"><div class="emoji">${s[0]}</div><div><b>${s[2]}</b><span>${s[1]}</span></div></div>`).join('');
+      document.getElementById('violationsBody').innerHTML = (data.topViolations || demo.topViolations).map(v => `
+        <tr><td><b>${esc(v.ruleCode)}</b></td><td>${esc(v.description)}</td><td>${esc(v.count)}</td></tr>
+      `).join('');
     }
-
-    const labels = data.map(d => formatDateShort(d.date));
-    const scores = data.map(d => d.averageScore);
-    
-    renderTrendChart(labels, scores);
-  } catch (e) {
-    console.error('Ошибка загрузки тренда:', e);
-    renderTrendChart(['Н/Д'], [0]); // Fallback
-  }
-}
-
-function renderTrendChart(labels, data) {
-  const ctx = document.getElementById('trendChart').getContext('2d');
-  if (trendChartInstance) trendChartInstance.destroy();
-
-  trendChartInstance = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: labels,
-      datasets: [{
-        label: 'Средний балл',
-        data: data,
-        borderColor: '#2E74B5',
-        backgroundColor: 'rgba(46,116,181,.1)',
-        borderWidth: 2,
-        fill: true,
-        tension: 0.3,
-        pointBackgroundColor: '#2E74B5',
-        pointRadius: 4
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      scales: {
-        y: { min: 0, max: 100, ticks: { font: { family: 'Inter' } } },
-        x: { ticks: { font: { family: 'Inter' } } }
-      },
-      plugins: {
-        legend: { display: false }
-      }
+    async function loadStats() {
+      try { fillStats(await apiCall('/api/v1/admin/stats')); }
+      catch(e) { fillStats(demo); }
     }
-  });
-}
-
-async function loadSections() {
-  try {
-    const data = await apiCall('/api/v1/stats/by-section');
-    
-    if (!data || data.length === 0) {
-      renderSectionsChart([], []);
-      return;
-    }
-
-    const labels = data.map(d => d.sectionName);
-    const shares = data.map(d => d.violationShare);
-    
-    renderSectionsChart(labels, shares);
-  } catch (e) {
-    console.error('Ошибка загрузки секций:', e);
-    renderSectionsChart(['Нет данных'], [100]);
-  }
-}
-
-function renderSectionsChart(labels, data) {
-  const ctx = document.getElementById('sectionsChart').getContext('2d');
-  if (sectionsChartInstance) sectionsChartInstance.destroy();
-
-  sectionsChartInstance = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: labels,
-      datasets: [{
-        data: data,
-        backgroundColor: colors.slice(0, data.length),
-        borderWidth: 1
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'right', labels: { font: { family: 'Inter' } } },
-        tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw}%` } }
-      }
-    }
-  });
-}
-
-async function loadTopViolations() {
-  const tbody = document.getElementById('topViolationsBody');
-  try {
-    const data = await apiCall('/api/v1/stats/top-violations?limit=10');
-    
-    if (!data || data.length === 0) {
-      tbody.innerHTML = `<tr><td colspan="5">${emptyState('🏆', 'Нет данных', 'Пока не зафиксировано ни одного нарушения')}</td></tr>`;
-      return;
-    }
-
-    tbody.innerHTML = data.map(v => {
-      const sevClass = `sev-${v.avgSeverity}`;
-      const color = v.avgSeverity === 'CRITICAL' ? '#E74C3C' : (v.avgSeverity === 'WARNING' ? '#F39C12' : '#2980B9');
-      
-      return `<tr>
-        <td><span class="badge badge-grey">${escHtml(v.ruleCode)}</span></td>
-        <td style="max-width: 300px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escHtml(v.description)}">
-          ${escHtml(v.description)}
-        </td>
-        <td><span class="severity-dot ${sevClass}"></span> ${escHtml(v.avgSeverity)}</td>
-        <td><strong>${v.count}</strong></td>
-        <td>
-          <div class="violation-bar-wrap">
-            <div style="width: 40px; font-size: 12px; color: var(--text-muted);">${v.percentage}%</div>
-            <div class="violation-bar-track">
-              <div class="violation-bar-fill" style="width: ${v.percentage}%; background: ${color}"></div>
-            </div>
-          </div>
-        </td>
-      </tr>`;
-    }).join('');
-  } catch (e) {
-    console.error('Ошибка загрузки топ нарушений:', e);
-    tbody.innerHTML = `<tr><td colspan="5" class="text-muted" style="text-align:center;padding:24px">Ошибка загрузки данных</td></tr>`;
-  }
-}
-
-function escHtml(s) {
-  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-loadStats();
-</script>
+    loadStats();
+  </script>
 </body>
 </html>

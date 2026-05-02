@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>НормаКонтроль - Профиль</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="layout">
+    <script src="app.js"></script>
+    <script>document.write(pageShell('/profile.html'));</script>
+    <main class="main">
+      <header class="topbar"><div><h1>👤 Профиль</h1><p>Данные текущего пользователя из JWT</p></div></header>
+      <section class="card" style="max-width:720px">
+        <div class="grid">
+          <div><b>Email</b><div id="profileEmail" style="font-size:22px;margin-top:6px">Пользователь</div></div>
+          <div><b>Имя</b><div id="profileName" style="font-size:22px;margin-top:6px">Пользователь</div></div>
+          <div><b>Роль</b><div id="profileRole" style="font-size:22px;margin-top:6px">USER</div></div>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script>
+    initPage();
+    const payload = parseJwt(getToken());
+    document.getElementById('profileEmail').textContent = payload.email || payload.sub || 'demo@normacontrol.ru';
+    document.getElementById('profileName').textContent = payload.name || payload.username || 'Пользователь';
+    document.getElementById('profileRole').textContent = payload.roles || payload.role || 'USER';
+  </script>
+</body>
+</html>

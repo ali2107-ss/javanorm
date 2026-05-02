@@ -1,382 +1,97 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <meta charset="UTF-8"/>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>НормаКонтроль — Дашборд</title>
-  <meta name="description" content="Главная панель системы проверки документов НормаКонтроль"/>
-  <link rel="preconnect" href="https://fonts.googleapis.com"/>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="style.css"/>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <style>
-    .chart-wrap {
-      position: relative;
-      height: 260px;
-    }
-    .recent-table-wrap .actions-cell {
-      white-space: nowrap;
-    }
-    .score-pill {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 13px;
-      font-weight: 600;
-      color: #fff;
-    }
-    .grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 24px;
-    }
-    @media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
-  </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>НормаКонтроль - Дашборд</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="app-layout">
+  <div class="layout">
+    <script src="app.js"></script>
+    <script>document.write(pageShell('/dashboard.html'));</script>
+    <main class="main">
+      <header class="topbar">
+        <div><h1>📊 Дашборд</h1><p>Состояние системы проверки документов</p></div>
+        <a class="btn btn-primary" href="/check.html">🚀 Новая проверка</a>
+      </header>
 
-  <!-- Sidebar -->
-  <aside class="sidebar" id="sidebar">
-    <div class="sidebar-logo">
-      <span class="logo-icon">🔍</span>
-      <span class="logo-title">НормаКонтроль</span>
-      <span class="logo-sub">ГОСТ 19.201-78</span>
-    </div>
-    <nav class="sidebar-nav">
-      <a class="nav-item" href="dashboard.html"><span class="nav-icon">📊</span> Дашборд</a>
-      <a class="nav-item" href="documents.html"><span class="nav-icon">📄</span> Документы</a>
-      <a class="nav-item" href="check.html"><span class="nav-icon">🔍</span> Проверка</a>
-      <a class="nav-item" href="stats.html"><span class="nav-icon">📈</span> Статистика</a>
-      <a class="nav-item" href="profile.html"><span class="nav-icon">👤</span> Профиль</a>
-      <a class="nav-item" href="about.html"><span class="nav-icon">ℹ️</span> О проекте</a>
-    </nav>
-    <div class="sidebar-footer">
-      <div class="sidebar-user">
-        <div class="avatar" id="sidebarAvatar">U</div>
-        <div class="user-info">
-          <div class="user-name" id="sidebarUserName">Загрузка...</div>
-          <div class="user-role" id="sidebarUserRole">Пользователь</div>
-        </div>
-      </div>
-      <button class="btn-logout" onclick="logout()">🚪 Выйти</button>
-    </div>
-  </aside>
+      <section class="grid grid-4" id="statsGrid"></section>
 
-  <!-- Main -->
-  <div class="main-content">
-    <div class="page-header">
-      <div>
-        <div class="page-title">📊 Дашборд</div>
-        <div class="page-subtitle" id="headerDate">Загрузка...</div>
-      </div>
-      <a href="check.html" class="btn btn-primary">➕ Новая проверка</a>
-    </div>
-
-    <div class="page-body">
-
-      <!-- Stats cards -->
-      <div class="stats-grid stagger" id="statsGrid">
-        <div class="stat-card">
-          <div class="stat-icon blue">📄</div>
-          <div>
-            <div class="stat-value" id="statTotal">—</div>
-            <div class="stat-label">Всего документов</div>
-          </div>
+      <section class="card" style="margin-top:22px">
+        <div class="topbar" style="margin-bottom:12px">
+          <div><h1 style="font-size:22px">Последние проверки</h1><p>Документы и результаты анализа</p></div>
+          <a class="btn btn-soft" href="/documents.html">Все документы</a>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon green">✅</div>
-          <div>
-            <div class="stat-value" id="statPassed">—</div>
-            <div class="stat-label">Прошли проверку</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon red">❌</div>
-          <div>
-            <div class="stat-value" id="statFailed">—</div>
-            <div class="stat-label">Не прошли</div>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon yellow">⭐</div>
-          <div>
-            <div class="stat-value" id="statAvgScore">—</div>
-            <div class="stat-label">Средний балл</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Chart + quick actions -->
-      <div class="grid-2 mb-24">
-        <div class="card animate-fade-up" style="animation-delay:.15s">
-          <div class="card-header">
-            <span class="card-title">📈 Динамика баллов</span>
-            <span class="text-muted text-sm">Последние 10 проверок</span>
-          </div>
-          <div class="chart-wrap">
-            <canvas id="scoresChart"></canvas>
-          </div>
-        </div>
-
-        <div class="card animate-fade-up" style="animation-delay:.2s">
-          <div class="card-header">
-            <span class="card-title">⚡ Быстрые действия</span>
-          </div>
-          <div style="display:flex;flex-direction:column;gap:12px">
-            <a href="check.html" class="btn btn-primary btn-block">🔍 Запустить проверку</a>
-            <a href="documents.html" class="btn btn-secondary btn-block">📤 Загрузить документ</a>
-            <a href="database.html" class="btn btn-secondary btn-block">🗄️ Просмотр базы данных</a>
-            <a href="stats.html" class="btn btn-secondary btn-block">📊 Полная статистика</a>
-          </div>
-          <div class="mt-24">
-            <div class="card-title text-sm mb-16">📋 Статус системы</div>
-            <div style="display:flex;flex-direction:column;gap:8px;font-size:13px" id="systemStatusList">
-              <div style="display:flex;justify-content:space-between">
-                <span class="text-muted">API сервер</span>
-                <span id="statusApi" style="color:var(--success);font-weight:600">● Загрузка</span>
-              </div>
-              <div style="display:flex;justify-content:space-between">
-                <span class="text-muted">База данных</span>
-                <span id="statusDb" style="color:var(--success);font-weight:600">● Загрузка</span>
-              </div>
-              <div style="display:flex;justify-content:space-between">
-                <span class="text-muted">Redis</span>
-                <span id="statusRedis" style="color:var(--success);font-weight:600">● Загрузка</span>
-              </div>
-              <div style="display:flex;justify-content:space-between">
-                <span class="text-muted">Kafka</span>
-                <span id="statusKafka" style="color:var(--success);font-weight:600">● Загрузка</span>
-              </div>
-              <div style="display:flex;justify-content:space-between">
-                <span class="text-muted">MinIO</span>
-                <span id="statusMinio" style="color:var(--success);font-weight:600">● Загрузка</span>
-              </div>
-              <div style="display:flex;justify-content:space-between">
-                <span class="text-muted">AI-модуль</span>
-                <span id="statusAI" style="color:var(--success);font-weight:600">● Загрузка</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Recent checks table -->
-      <div class="card animate-fade-up" style="animation-delay:.25s">
-        <div class="card-header">
-          <span class="card-title">🕐 Последние проверки</span>
-          <a href="documents.html" class="btn btn-ghost btn-sm">Все документы →</a>
-        </div>
-        <div class="table-wrap recent-table-wrap">
+        <div class="table-wrap">
           <table>
-            <thead>
-              <tr>
-                <th>Документ</th>
-                <th>Дата</th>
-                <th>Балл</th>
-                <th>Статус</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
-            <tbody id="recentTableBody">
-              <tr><td colspan="5"><div style="display:flex;justify-content:center;padding:24px"><div class="spinner"></div></div></td></tr>
-            </tbody>
+            <thead><tr><th>Файл</th><th>Балл</th><th>Статус</th><th>Действие</th></tr></thead>
+            <tbody id="recentBody"></tbody>
           </table>
         </div>
-      </div>
+      </section>
+    </main>
+  </div>
 
-    </div><!-- /page-body -->
-  </div><!-- /main-content -->
-</div><!-- /app-layout -->
+  <script>
+    initPage();
 
-<script src="app.js"></script>
-<script>
-initProtectedPage();
+    const demoStats = { totalDocuments: 5, passedDocuments: 3, failedDocuments: 2, averageScore: 76 };
+    const demoRows = [
+      { id: 'abc-123', name: 'ТЗ_НормаКонтроль.docx', score: 87, passed: true },
+      { id: 'def-456', name: 'Пояснительная.docx', score: 62, passed: false },
+      { id: 'ghi-789', name: 'Руководство.docx', score: 94, passed: true }
+    ];
 
-// ── Date in header ──────────────────────────────────
-(function() {
-  const el = document.getElementById('headerDate');
-  const now = new Date();
-  el.textContent = now.toLocaleDateString('ru-RU', {
-    weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-  });
-})();
-
-// ── Chart ───────────────────────────────────────────
-let chartInstance = null;
-
-function renderChart(labels, data) {
-  const ctx = document.getElementById('scoresChart').getContext('2d');
-  if (chartInstance) chartInstance.destroy();
-
-  chartInstance = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Балл',
-          data,
-          borderColor: '#2E74B5',
-          backgroundColor: 'rgba(46,116,181,.1)',
-          borderWidth: 2.5,
-          tension: .4,
-          pointRadius: 5,
-          pointBackgroundColor: data.map(v => getScoreColor(v)),
-          fill: true,
-        },
-        {
-          label: 'Порог (80)',
-          data: new Array(labels.length).fill(80),
-          borderColor: '#27AE60',
-          borderDash: [6, 4],
-          borderWidth: 1.5,
-          pointRadius: 0,
-          fill: false,
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 12 } } },
-        tooltip: { callbacks: { label: ctx => ' Балл: ' + ctx.parsed.y } }
-      },
-      scales: {
-        y: {
-          min: 0, max: 100,
-          grid: { color: '#eee' },
-          ticks: { font: { family: 'Inter', size: 11 } }
-        },
-        x: {
-          grid: { display: false },
-          ticks: { font: { family: 'Inter', size: 11 } }
-        }
-      }
-    }
-  });
-}
-
-// Fallback demo chart
-function renderDemoChart() {
-  const labels = ['25.04','26.04','27.04','28.04','29.04','30.04','01.05'];
-  const data   = [72, 85, 61, 90, 78, 88, 82];
-  renderChart(labels, data);
-}
-
-// ── Load stats ──────────────────────────────────────
-async function loadStats() {
-  try {
-    const data = await apiCall('/api/v1/admin/stats');
-    if (!data) return;
-    document.getElementById('statTotal').textContent     = data.totalDocuments    ?? data.total    ?? '—';
-    document.getElementById('statPassed').textContent    = data.passedDocuments   ?? data.passed   ?? '—';
-    document.getElementById('statFailed').textContent    = data.failedDocuments   ?? data.failed   ?? '—';
-    const avg = data.averageScore ?? data.avgScore;
-    document.getElementById('statAvgScore').textContent  = avg != null ? avg.toFixed(1) : '—';
-  } catch (e) {
-    console.warn('Stats load failed:', e.message);
-    // Demo values
-    document.getElementById('statTotal').textContent    = '24';
-    document.getElementById('statPassed').textContent   = '18';
-    document.getElementById('statFailed').textContent   = '6';
-    document.getElementById('statAvgScore').textContent = '81.4';
-  }
-}
-
-// ── Load recent documents ───────────────────────────
-async function loadRecent() {
-  const tbody = document.getElementById('recentTableBody');
-  try {
-    const data = await apiCall('/api/v1/documents?size=5&page=0&sort=createdAt,desc');
-    const docs = data?.content ?? data ?? [];
-
-    if (!docs.length) {
-      tbody.innerHTML = `<tr><td colspan="5">${emptyState('📄','Нет документов','Загрузите первый документ для проверки')}</td></tr>`;
-      renderDemoChart();
-      return;
+    function renderStats(data) {
+      const total = data.totalDocuments ?? data.total ?? 5;
+      const passed = data.passedDocuments ?? data.passed ?? 3;
+      const failed = data.failedDocuments ?? data.failed ?? Math.max(0, total - passed);
+      const avg = Math.round(data.averageScore ?? data.avgScore ?? 76);
+      document.getElementById('statsGrid').innerHTML = [
+        ['📄', 'Документов', total],
+        ['✅', 'Прошли', passed],
+        ['❌', 'Не прошли', failed],
+        ['⭐', 'Средний балл', avg]
+      ].map(item => `<div class="card stat"><div class="emoji">${item[0]}</div><div><b>${item[2]}</b><span>${item[1]}</span></div></div>`).join('');
     }
 
-    tbody.innerHTML = docs.map(d => {
-      const score = d.checkResult?.score ?? d.score ?? null;
-      const sc    = score != null ? `<span class="score-pill" style="background:${getScoreColor(score)}">${score}</span>` : '—';
-      return `<tr>
-        <td><strong>${escHtml(d.fileName || d.name || '—')}</strong></td>
-        <td class="text-muted">${formatDate(d.createdAt || d.uploadedAt)}</td>
-        <td>${sc}</td>
-        <td>${statusBadge(d.status)}</td>
-        <td class="actions-cell">
-          ${d.status === 'DONE' ? `<button class="btn btn-ghost btn-sm" onclick="apiDownload('/api/v1/documents/${d.id}/report','report.pdf')">📄 Отчёт</button>` : ''}
-          <a href="check.html?docId=${d.id}" class="btn btn-ghost btn-sm">🔍</a>
-        </td>
-      </tr>`;
-    }).join('');
-
-    // Chart from data
-    const chartDocs = docs.filter(d => d.checkResult?.score != null || d.score != null).slice(0, 10).reverse();
-    if (chartDocs.length > 1) {
-      renderChart(
-        chartDocs.map(d => formatDateShort(d.createdAt || d.uploadedAt)),
-        chartDocs.map(d => d.checkResult?.score ?? d.score)
-      );
-    } else {
-      renderDemoChart();
+    function normalizeDoc(doc) {
+      const score = doc.score ?? doc.checkScore ?? doc.result?.score ?? 76;
+      return {
+        id: doc.id || doc.documentId || 'demo',
+        name: doc.originalFilename || doc.fileName || doc.name || 'Документ.docx',
+        score,
+        passed: (doc.status === 'PASSED' || doc.status === 'DONE' || score >= 80)
+      };
     }
-  } catch (e) {
-    console.warn('Recent docs failed:', e.message);
-    tbody.innerHTML = `<tr><td colspan="5" class="text-muted" style="text-align:center;padding:24px">Нет данных (сервер недоступен)</td></tr>`;
-    renderDemoChart();
-  }
-}
 
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
+    function renderRows(rows) {
+      document.getElementById('recentBody').innerHTML = rows.map(row => `
+        <tr>
+          <td><b>${esc(row.name)}</b></td>
+          <td>${row.score}/100</td>
+          <td><span class="badge ${row.passed ? 'ok' : 'bad'}">${row.passed ? '✅ Прошёл' : '❌ Не прошёл'}</span></td>
+          <td><a class="btn btn-soft" href="/check.html?id=${esc(row.id)}">Проверить</a></td>
+        </tr>`).join('');
+    }
 
-// ── System Status ─────────────────────────────────────
-async function loadSystemStatus() {
-  try {
-    const data = await apiCall('/api/v1/system/status');
-    if (!data) return;
-    
-    const updateIndicator = (id, status) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      if (status === 'UP') {
-        el.style.color = 'var(--success)';
-        el.textContent = '● Онлайн';
-      } else {
-        el.style.color = 'var(--danger)';
-        el.textContent = '● Ошибка';
-        showError('Компонент недоступен: ' + id);
+    async function loadDashboard() {
+      try { renderStats(await apiCall('/api/v1/admin/stats')); }
+      catch(e) { renderStats(demoStats); }
+
+      try {
+        const data = await apiCall('/api/v1/documents?size=5');
+        const docs = Array.isArray(data) ? data : (data.content || data.items || []);
+        renderRows(docs.length ? docs.map(normalizeDoc) : demoRows);
+      } catch(e) {
+        renderRows(demoRows);
       }
-    };
-    
-    updateIndicator('statusApi', data.status);
-    updateIndicator('statusDb', data.components?.database?.status);
-    updateIndicator('statusRedis', data.components?.redis?.status);
-    updateIndicator('statusKafka', data.components?.kafka?.status);
-    updateIndicator('statusMinio', data.components?.minio?.status);
-    updateIndicator('statusAI', data.components?.aiService?.status);
+    }
 
-  } catch (e) {
-    console.warn('System status failed:', e.message);
-    const setErr = (id) => {
-      const el = document.getElementById(id);
-      if (el) {
-        el.style.color = 'var(--danger)';
-        el.textContent = '● Ошибка';
-      }
-    };
-    ['statusApi','statusDb','statusRedis','statusKafka','statusMinio','statusAI'].forEach(setErr);
-  }
-}
-
-loadStats();
-loadRecent();
-loadSystemStatus();
-setInterval(loadSystemStatus, 30000); // 30 seconds
-</script>
+    loadDashboard();
+  </script>
 </body>
 </html>

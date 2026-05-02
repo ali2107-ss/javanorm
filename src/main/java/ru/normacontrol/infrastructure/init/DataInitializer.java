@@ -3,174 +3,176 @@ package ru.normacontrol.infrastructure.init;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import ru.normacontrol.domain.entity.CheckResult;
-import ru.normacontrol.domain.entity.Document;
-import ru.normacontrol.domain.entity.Role;
-import ru.normacontrol.domain.entity.User;
-import ru.normacontrol.domain.entity.Violation;
 import ru.normacontrol.domain.enums.DocumentStatus;
 import ru.normacontrol.domain.enums.RoleName;
 import ru.normacontrol.domain.enums.ViolationSeverity;
-import ru.normacontrol.domain.repository.CheckResultRepository;
-import ru.normacontrol.domain.repository.UserRepository;
-import ru.normacontrol.domain.repository.WriteDocumentRepository;
 import ru.normacontrol.infrastructure.audit.AuditService;
+import ru.normacontrol.infrastructure.persistence.entity.CheckResultJpaEntity;
+import ru.normacontrol.infrastructure.persistence.entity.DocumentJpaEntity;
+import ru.normacontrol.infrastructure.persistence.entity.RoleJpaEntity;
+import ru.normacontrol.infrastructure.persistence.entity.UserJpaEntity;
+import ru.normacontrol.infrastructure.persistence.entity.ViolationJpaEntity;
+import ru.normacontrol.infrastructure.persistence.repository.CheckResultJpaRepository;
+import ru.normacontrol.infrastructure.persistence.repository.DocumentJpaRepository;
+import ru.normacontrol.infrastructure.persistence.repository.RoleJpaRepository;
+import ru.normacontrol.infrastructure.persistence.repository.UserJpaRepository;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 @Slf4j
 @Component
-@Profile("demo")
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
 
-    private final UserRepository userRepository;
-    private final WriteDocumentRepository documentRepository;
-    private final CheckResultRepository checkResultRepository;
+    private final UserJpaRepository userRepository;
+    private final RoleJpaRepository roleRepository;
+    private final DocumentJpaRepository documentRepository;
+    private final CheckResultJpaRepository checkResultRepository;
     private final AuditService auditService;
     private final PasswordEncoder passwordEncoder;
 
     @Override
     @Transactional
     public void run(String... args) {
-        boolean freshDemoData = !userRepository.existsByEmail("admin@demo.ru")
-                && !userRepository.existsByEmail("user@demo.ru");
+        RoleJpaEntity userRole = createRoleIfMissing(RoleName.ROLE_USER);
+        RoleJpaEntity adminRole = createRoleIfMissing(RoleName.ROLE_ADMIN);
 
-        User admin = createUserIfMissing("admin@demo.ru", "admin", "Admin1234!", "Администратор", RoleName.ROLE_ADMIN);
-        User user = createUserIfMissing("user@demo.ru", "user", "User1234!", "Пользователь", RoleName.ROLE_USER);
-
-        if (!freshDemoData) {
-            log.info("Demo users already exist, skipping demo documents and audit log initialization.");
-            return;
+        if (userRepository.count() == 0 || userRepository.findByEmail("admin@demo.ru").isEmpty()) {
+            createUserIfMissing("admin@demo.ru", "Администратор", "Admin1234!", Set.of(adminRole, userRole));
+        }
+        if (userRepository.count() == 0 || userRepository.findByEmail("user@demo.ru").isEmpty()) {
+            createUserIfMissing("user@demo.ru", "Студент", "User1234!", Set.of(userRole));
         }
 
-        createDocumentWithResult("ТЗ_НормаКонтроль.docx", DocumentStatus.CHECKED, true, 94, user.getId(), null);
-        createDocumentWithResult("Пояснительная_записка.docx", DocumentStatus.CHECKED, true, 87, user.getId(), null);
-        createDocumentWithResult("Руководство_пользователя.docx", DocumentStatus.CHECKED, false, 72, user.getId(), null);
-        createDocumentWithResult("ТЗ_версия_2.docx", DocumentStatus.CHECKED, false, 61, user.getId(), null);
-        createDocumentWithResult("Черновик_ТЗ.docx", DocumentStatus.FAILED, false, 43, user.getId(), createViolations());
+        UserJpaEntity adminUser = userRepository.findByEmail("admin@demo.ru")
+                .orElseThrow(() -> new IllegalStateException("Demo admin was not created"));
 
-        generateAuditLogs(user, admin);
-        log.info("Demo data initialized: admin@demo.ru and user@demo.ru.");
+        if (documentRepository.countByDeletedFalse() == 0) {
+            createDocumentWithResult(adminUser, "ТЗ_НормаКонтроль.docx", "demo/tz_normacontrol.docx", 245760L, 87, true);
+            createDocumentWithResult(adminUser, "Пояснительная_записка.docx", "demo/poyasnitelnaya_zapiska.docx", 193536L, 62, false);
+            createDocumentWithResult(adminUser, "Руководство_пользователя.docx", "demo/rukovodstvo_polzovatelya.docx", 319488L, 94, true);
+            createDocumentWithResult(adminUser, "ТЗ_версия2.docx", "demo/tz_versiya2.docx", 262144L, 91, true);
+            createDocumentWithResult(adminUser, "Черновик.docx", "demo/chernovik.docx", 151552L, 43, false);
+            generateAuditLogs(adminUser);
+            log.info("Demo documents and check results initialized.");
+        }
     }
 
-    private User createUserIfMissing(String email, String username, String password, String fullName, RoleName roleName) {
-        return userRepository.findByEmail(email)
-                .orElseGet(() -> createUser(email, username, password, fullName, roleName));
+    private RoleJpaEntity createRoleIfMissing(RoleName roleName) {
+        return roleRepository.findByName(roleName)
+                .orElseGet(() -> roleRepository.save(RoleJpaEntity.builder().name(roleName).build()));
     }
 
-    private User createUser(String email, String username, String password, String fullName, RoleName roleName) {
-        Role role = Role.builder()
-                .id((long) (roleName.ordinal() + 1))
-                .name(roleName)
-                .build();
-
-        User user = User.builder()
+    private UserJpaEntity createUserIfMissing(String email, String displayName, String password, Set<RoleJpaEntity> roles) {
+        return userRepository.findByEmail(email).orElseGet(() -> userRepository.save(UserJpaEntity.builder()
                 .id(UUID.randomUUID())
                 .email(email)
-                .username(username)
+                .displayName(displayName)
                 .passwordHash(passwordEncoder.encode(password))
-                .fullName(fullName)
                 .enabled(true)
+                .accountLocked(false)
+                .failedLoginAttempts(0)
                 .createdAt(LocalDateTime.now())
-                .roles(Set.of(role))
-                .build();
-
-        return userRepository.save(user);
+                .lastLoginAt(LocalDateTime.now())
+                .roles(roles)
+                .build()));
     }
 
-    private void createDocumentWithResult(String filename,
-                                          DocumentStatus status,
-                                          boolean passed,
+    private void createDocumentWithResult(UserJpaEntity owner,
+                                          String originalFileName,
+                                          String storagePath,
+                                          long fileSizeBytes,
                                           int score,
-                                          UUID ownerId,
-                                          Set<Violation> explicitViolations) {
-        Document document = Document.builder()
+                                          boolean passed) {
+        DocumentJpaEntity document = documentRepository.save(DocumentJpaEntity.builder()
                 .id(UUID.randomUUID())
-                .originalFilename(filename)
-                .storageKey(UUID.randomUUID() + "-" + filename)
-                .contentType("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-                .fileSize((long) (Math.random() * 5 * 1024 * 1024 + 1024))
-                .status(status)
-                .ownerId(ownerId)
-                .createdAt(LocalDateTime.now().minusDays((long) (Math.random() * 30)))
+                .originalFileName(originalFileName)
+                .storagePath(storagePath)
+                .type("DOCX")
+                .status(DocumentStatus.CHECKED)
+                .fileSizeBytes(fileSizeBytes)
+                .owner(owner)
+                .deleted(false)
+                .createdAt(LocalDateTime.now().minusDays(5 - Math.max(1, score % 5)))
                 .updatedAt(LocalDateTime.now())
-                .build();
+                .build());
 
-        documentRepository.save(document);
-
-        CheckResult checkResult = CheckResult.builder()
+        CheckResultJpaEntity result = CheckResultJpaEntity.builder()
                 .id(UUID.randomUUID())
-                .documentId(document.getId())
-                .passed(passed)
-                .complianceScore(score)
-                .checkedAt(document.getCreatedAt().plusMinutes(2))
-                .checkedBy(ownerId)
+                .document(document)
                 .ruleSetName("ГОСТ 19.201-78")
                 .ruleSetVersion("1.0")
-                .processingTimeMs((long) (Math.random() * 5000 + 1000))
+                .complianceScore(score)
+                .passed(passed)
+                .processingTimeMs(14500L)
+                .checkedAt(LocalDateTime.now().minusMinutes(30))
+                .reportStoragePath("demo/report_" + document.getId() + ".pdf")
                 .build();
 
-        if (explicitViolations != null) {
-            explicitViolations.forEach(checkResult::addViolation);
-            checkResult.evaluate();
-        } else if (score < 100) {
-            checkResult.addViolation(Violation.builder()
-                    .id(UUID.randomUUID())
-                    .ruleCode("FMT-001")
-                    .description("Незначительное нарушение оформления")
-                    .severity(ViolationSeverity.WARNING)
-                    .pageNumber(1)
-                    .ruleReference("ГОСТ 19.201-78")
-                    .build());
-            checkResult.evaluate();
+        List<ViolationJpaEntity> violations = new ArrayList<>();
+        violations.add(createViolation(result,
+                "GOST19.201.STRUCTURE.MISSING_SECTION",
+                "Отсутствует раздел «ОСНОВАНИЯ ДЛЯ РАЗРАБОТКИ»",
+                ViolationSeverity.CRITICAL,
+                1,
+                "Добавьте раздел согласно ГОСТ 19.201-78 п.2",
+                "ГОСТ 19.201-78, раздел 2"));
+        violations.add(createViolation(result,
+                "GOST19.201.FORMAT.WRONG_FONT",
+                "Неверный шрифт Calibri на странице 3",
+                ViolationSeverity.WARNING,
+                3,
+                "Замените на Times New Roman 14pt",
+                "ГОСТ 19.106-78, п.8.1"));
+        if (!passed) {
+            violations.add(createViolation(result,
+                    "GOST19.201.LANGUAGE.FORBIDDEN_PHRASE",
+                    "Запрещённая фраза «и т.д.» в тексте",
+                    ViolationSeverity.CRITICAL,
+                    4,
+                    "Перечислите все пункты явно",
+                    "ГОСТ 19.201-78"));
         }
 
-        checkResult.setComplianceScore(score);
-        checkResult.setPassed(passed);
-        checkResultRepository.save(checkResult);
+        result.setViolations(violations);
+        checkResultRepository.save(result);
     }
 
-    private Set<Violation> createViolations() {
-        return Set.of(
-                createViolation("STRUCT-001", "Отсутствует раздел Введение", ViolationSeverity.CRITICAL, "ГОСТ 19.201.STRUCTURE.MISSING_SECTION"),
-                createViolation("STRUCT-002", "Отсутствует раздел Назначение и цели", ViolationSeverity.CRITICAL, "ГОСТ 19.201.STRUCTURE.MISSING_SECTION"),
-                createViolation("LANG-001", "Использована разговорная формулировка", ViolationSeverity.CRITICAL, "ГОСТ 19.201.LANGUAGE.FORBIDDEN_PHRASE"),
-                createViolation("FMT-001", "Шрифт отличается от Times New Roman", ViolationSeverity.WARNING, "ГОСТ 19.201.FORMAT.WRONG_FONT"),
-                createViolation("TBL-001", "Таблица без подписи", ViolationSeverity.WARNING, "ГОСТ 19.201.TABLE.MISSING_CAPTION"),
-                createViolation("FMT-002", "Некорректный межстрочный интервал", ViolationSeverity.INFO, "ГОСТ 19.201.FORMAT.WRONG_ALIGNMENT")
-        );
-    }
-
-    private Violation createViolation(String code, String desc, ViolationSeverity severity, String reference) {
-        return Violation.builder()
+    private ViolationJpaEntity createViolation(CheckResultJpaEntity result,
+                                               String ruleCode,
+                                               String description,
+                                               ViolationSeverity severity,
+                                               int pageNumber,
+                                               String suggestion,
+                                               String ruleReference) {
+        return ViolationJpaEntity.builder()
                 .id(UUID.randomUUID())
-                .ruleCode(code)
-                .description(desc)
+                .checkResult(result)
+                .ruleCode(ruleCode)
+                .description(description)
                 .severity(severity)
-                .pageNumber((int) (Math.random() * 10 + 1))
-                .ruleReference(reference)
-                .suggestion("Исправьте в соответствии с ГОСТ")
+                .pageNumber(pageNumber)
+                .lineNumber(0)
+                .suggestion(suggestion)
+                .aiSuggestion(suggestion)
+                .ruleReference(ruleReference)
                 .build();
     }
 
-    private void generateAuditLogs(User user, User admin) {
-        User[] users = {user, admin};
+    private void generateAuditLogs(UserJpaEntity admin) {
         String[] actions = {"LOGIN", "UPLOAD_DOCUMENT", "START_CHECK", "VIEW_RESULT", "DOWNLOAD_REPORT"};
-
         for (int i = 0; i < 20; i++) {
-            User actor = users[i % users.length];
-            String action = actions[i % actions.length];
             auditService.log(
-                    actor.getId(),
-                    action,
+                    admin.getId(),
+                    actions[i % actions.length],
                     "SYSTEM",
                     UUID.randomUUID(),
                     true,
