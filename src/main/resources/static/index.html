@@ -1,240 +1,312 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NormaControl | Интеллектуальный Нормоконтроль</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>НормаКонтроль — Вход</title>
+  <meta name="description" content="Вход в систему проверки документов НормаКонтроль по ГОСТ 19.201-78"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    body {
+      background: linear-gradient(135deg, #0f1e36 0%, #1F3864 50%, #163057 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .login-wrap {
+      width: 100%;
+      max-width: 420px;
+      animation: fadeUp .5s ease both;
+    }
+
+    .login-logo {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .login-logo .logo-icon-big { font-size: 48px; display: block; margin-bottom: 8px; }
+
+    .login-logo h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+
+    .login-logo p {
+      font-size: 13px;
+      color: rgba(255,255,255,.55);
+      max-width: 300px;
+      margin: 0 auto;
+      line-height: 1.5;
+    }
+
+    .login-card {
+      background: rgba(255,255,255,.97);
+      backdrop-filter: blur(12px);
+      border-radius: 16px;
+      padding: 36px 36px 32px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.35);
+    }
+
+    .login-card h2 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 24px;
+      color: var(--text);
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 20px 0;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+
+    .divider::before, .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .btn-github {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 11px 20px;
+      border: 1.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: #24292e;
+      color: #fff;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all var(--transition);
+    }
+
+    .btn-github:hover { background: #1a1f24; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,.2); }
+
+    .btn-github svg { width: 20px; height: 20px; fill: #fff; }
+
+    .register-link {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .register-link a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .register-link a:hover { text-decoration: underline; }
+
+    .error-msg {
+      background: #fdecea;
+      border: 1px solid #f5c6c2;
+      color: #c0392b;
+      border-radius: var(--radius-sm);
+      padding: 11px 14px;
+      font-size: 13px;
+      margin-top: 14px;
+      display: none;
+      animation: fadeIn .3s ease;
+    }
+
+    .error-msg.visible { display: flex; align-items: center; gap: 8px; }
+
+    .btn-login {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-login .btn-spinner {
+      display: none;
+      width: 18px; height: 18px;
+      border: 2px solid rgba(255,255,255,.4);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+    }
+
+    .btn-login.loading .btn-text { display: none; }
+    .btn-login.loading .btn-spinner { display: block; }
+
+    .particles {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      overflow: hidden;
+      z-index: 0;
+    }
+
+    .particle {
+      position: absolute;
+      width: 4px; height: 4px;
+      background: rgba(255,255,255,.15);
+      border-radius: 50%;
+      animation: float linear infinite;
+    }
+
+    @keyframes float {
+      0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+      10%  { opacity: 1; }
+      90%  { opacity: 1; }
+      100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+    }
+
+    .login-wrap { position: relative; z-index: 1; }
+  </style>
 </head>
 <body>
-    <div id="app">
-        <!-- Sidebar Navigation -->
-        <nav class="sidebar">
-            <div class="logo">
-                <div class="logo-icon"><i class="fas fa-shield-halved"></i></div>
-                <span>NormaControl</span>
-            </div>
-            <ul class="nav-links">
-                <li class="active" data-view="dashboard"><i class="fas fa-th-large"></i> Панель управления</li>
-                <li data-view="upload"><i class="fas fa-file-upload"></i> Проверить документ</li>
-                <li data-view="history"><i class="fas fa-history"></i> История проверок</li>
-                <li data-view="compare"><i class="fas fa-columns"></i> Сравнение версий</li>
-            </ul>
-            <div class="sidebar-footer">
-                <div class="user-profile" id="userProfile">
-                    <div class="avatar" id="userAvatar">A</div>
-                    <div class="user-info">
-                        <span class="user-name" id="userName">Гость</span>
-                        <span class="user-role" id="userRole">Пользователь</span>
-                    </div>
-                    <button id="logoutBtn" class="logout-icon"><i class="fas fa-sign-out-alt"></i></button>
-                </div>
-            </div>
-        </nav>
 
-        <!-- Main Content Area -->
-        <main class="content">
-            <header class="top-bar">
-                <h1 id="viewTitle">Панель управления</h1>
-                <div class="header-actions">
-                    <div class="status-indicator">
-                        <span class="dot pulse"></span> API: <span id="apiStatus">Подключение...</span>
-                    </div>
-                </div>
-            </header>
+<!-- Background particles -->
+<div class="particles" id="particles"></div>
 
-            <div id="viewContainer" class="view-container">
-                <!-- Dashboard View -->
-                <section id="dashboardView" class="view active">
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-icon blue"><i class="fas fa-file-alt"></i></div>
-                            <div class="stat-content">
-                                <h3>Всего документов</h3>
-                                <p class="stat-value" id="totalDocs">0</p>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon green"><i class="fas fa-check-circle"></i></div>
-                            <div class="stat-content">
-                                <h3>Без ошибок</h3>
-                                <p class="stat-value" id="cleanDocs">0</p>
-                            </div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-icon red"><i class="fas fa-exclamation-triangle"></i></div>
-                            <div class="stat-content">
-                                <h3>Нарушений найдено</h3>
-                                <p class="stat-value" id="totalViolations">0</p>
-                            </div>
-                        </div>
-                    </div>
+<div class="login-wrap">
+  <div class="login-logo">
+    <span class="logo-icon-big">🔍</span>
+    <h1>НормаКонтроль</h1>
+    <p>Система проверки документов по ГОСТ 19.201-78</p>
+  </div>
 
-                    <div class="recent-docs">
-                        <div class="section-header">
-                            <h2>Последние документы</h2>
-                            <button class="btn btn-secondary" onclick="app.switchView('upload')">Новая проверка</button>
-                        </div>
-                        <div class="docs-table-container">
-                            <table class="docs-table">
-                               <thead>
-                                   <tr>
-                                       <th>Название</th>
-                                       <th>Дата загрузки</th>
-                                       <th>Статус</th>
-                                       <th>Ошибок</th>
-                                       <th>Действия</th>
-                                   </tr>
-                               </thead>
-                               <tbody id="recentDocsTable">
-                                   <!-- Documents will be loaded here -->
-                               </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </section>
+  <div class="login-card">
+    <h2>Добро пожаловать</h2>
 
-                <!-- Upload View -->
-                <section id="uploadView" class="view">
-                    <div class="upload-container">
-                        <div class="upload-box" id="dropZone">
-                            <i class="fas fa-cloud-upload-alt upload-icon"></i>
-                            <h2>Загрузите документ для проверки</h2>
-                            <p>Перетащите файл сюда или нажмите для выбора</p>
-                            <p class="file-hint">Поддерживаются форматы DOCX, PDF, TXT (до 50 МБ)</p>
-                            <input type="file" id="fileInput" hidden accept=".docx,.pdf,.txt">
-                            <div id="selectedFile" class="selected-file hidden">
-                                <i class="fas fa-file-word"></i>
-                                <span id="fileName">file.docx</span>
-                                <button class="remove-file"><i class="fas fa-times"></i></button>
-                            </div>
-                        </div>
-                        <div class="upload-options">
-                            <h3>Параметры проверки</h3>
-                            <div class="checkbox-group">
-                                <label class="checkbox-item">
-                                    <input type="checkbox" checked disabled>
-                                    <span>ГОСТ 19.201-78 (ТЗ)</span>
-                                </label>
-                                <label class="checkbox-item">
-                                    <input type="checkbox" id="aiEnhance" checked>
-                                    <span>Использовать ИИ рекомендации</span>
-                                </label>
-                            </div>
-                            <button id="startCheckBtn" class="btn btn-primary btn-large" disabled>Запустить анализ</button>
-                        </div>
-                    </div>
-                </section>
+    <form id="loginForm" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="email">Email</label>
+        <input
+          class="form-control" type="email" id="email"
+          placeholder="user@example.com" autocomplete="email" required/>
+      </div>
 
-                <!-- Results View -->
-                <section id="resultsView" class="view">
-                    <div class="results-header">
-                        <button class="back-btn" onclick="app.switchView('dashboard')"><i class="fas fa-arrow-left"></i> Назад</button>
-                        <div class="results-info">
-                            <h2 id="resultDocName">Название документа</h2>
-                            <span class="tag" id="resultScore">Счёт: 0%</span>
-                        </div>
-                        <button class="btn btn-success" id="downloadReportBtn"><i class="fas fa-file-pdf"></i> Скачать отчёт</button>
-                    </div>
-
-                    <div class="results-grid">
-                        <div class="violations-list-container">
-                            <h3>Найденные нарушения (<span id="violationCount">0</span>)</h3>
-                            <div id="violationsList" class="violations-list">
-                                <!-- Violations will be loaded here -->
-                            </div>
-                        </div>
-                        <div class="ai-side-panel">
-                            <div class="ai-card">
-                                <div class="ai-card-header">
-                                    <i class="fas fa-robot"></i>
-                                    <h3>AI Рекомендация</h3>
-                                </div>
-                                <div class="ai-card-body">
-                                    <p id="aiSuggestion">Выберите нарушение из списка, чтобы получить подробную рекомендацию по исправлению от искусственного интеллекта.</p>
-                                </div>
-                                <div class="ai-card-footer">
-                                    <span class="ai-model">Claude 3 Haiku</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Compare View -->
-                <section id="compareView" class="view">
-                    <div class="compare-setup">
-                        <h2>Сравнение версий документа</h2>
-                        <p class="section-desc">Выберите два документа, чтобы увидеть изменения в количестве и типах нарушений.</p>
-                        
-                        <div class="compare-selector-grid">
-                            <div class="doc-select-box">
-                                <h3>Документ А (Оригинал)</h3>
-                                <select id="docA" class="form-control"></select>
-                            </div>
-                            <div class="doc-select-box">
-                                <h3>Документ Б (Новая версия)</h3>
-                                <select id="docB" class="form-control"></select>
-                            </div>
-                        </div>
-                        <button id="compareBtn" class="btn btn-primary">Сравнить версии</button>
-                    </div>
-
-                    <div id="compareResults" class="compare-results hidden">
-                        <!-- Comparison results will appear here -->
-                    </div>
-                </section>
-            </div>
-        </main>
-
-        <!-- Auth Overlays -->
-        <div id="authOverlay" class="overlay">
-            <div class="auth-card">
-                <div class="auth-tabs">
-                    <button class="auth-tab active" data-tab="login">Вход</button>
-                    <button class="auth-tab" data-tab="register">Регистрация</button>
-                </div>
-                
-                <form id="loginForm" class="auth-form active">
-                    <h2>С возвращением!</h2>
-                    <div class="form-group">
-                        <label>Email или Логин</label>
-                        <input type="text" id="loginEmail" required placeholder="Введите ваш email">
-                    </div>
-                    <div class="form-group">
-                        <label>Пароль</label>
-                        <input type="password" id="loginPass" required placeholder="••••••••">
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Войти в систему</button>
-                </form>
-
-                <form id="registerForm" class="auth-form">
-                    <h2>Создать аккаунт</h2>
-                    <div class="form-group">
-                        <label>Имя пользователя</label>
-                        <input type="text" id="regUser" required placeholder="username">
-                    </div>
-                    <div class="form-group">
-                        <label>Email</label>
-                        <input type="email" id="regEmail" required placeholder="email@example.com">
-                    </div>
-                    <div class="form-group">
-                        <label>Пароль</label>
-                        <input type="password" id="regPass" required placeholder="Минимум 6 символов">
-                    </div>
-                    <button type="submit" class="btn btn-primary w-100">Зарегистрироваться</button>
-                </form>
-            </div>
+      <div class="form-group">
+        <label class="form-label" for="password">Пароль</label>
+        <div class="input-group">
+          <input
+            class="form-control" type="password" id="password"
+            placeholder="••••••••" autocomplete="current-password" required/>
+          <button type="button" class="input-btn" id="togglePwd" title="Показать/скрыть пароль">👁</button>
         </div>
+      </div>
 
-        <!-- Notification Toast -->
-        <div id="notification" class="notification"></div>
+      <button type="submit" class="btn btn-primary btn-block btn-login" id="loginBtn">
+        <span class="btn-text">Войти</span>
+        <div class="btn-spinner"></div>
+      </button>
+
+      <div class="error-msg" id="errorMsg">
+        <span>⚠️</span>
+        <span id="errorText">Неверный email или пароль</span>
+      </div>
+    </form>
+
+    <div class="divider">или</div>
+
+    <a href="/oauth2/authorization/github" class="btn-github">
+      <svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
+      Войти через GitHub
+    </a>
+
+    <div class="register-link">
+      Нет аккаунта? <a href="#" id="registerLink">Зарегистрироваться</a>
     </div>
+  </div>
+</div>
 
-    <script src="app.js"></script>
+<script src="app.js"></script>
+<script>
+  // Redirect if already logged in
+  if (getToken()) window.location.href = '/dashboard.html';
+
+  // ── Particles ──────────────────────────────────────
+  (function() {
+    const container = document.getElementById('particles');
+    for (let i = 0; i < 25; i++) {
+      const p = document.createElement('div');
+      p.className = 'particle';
+      p.style.left     = Math.random() * 100 + '%';
+      p.style.width    = p.style.height = (Math.random() * 4 + 2) + 'px';
+      p.style.animationDuration = (Math.random() * 12 + 8) + 's';
+      p.style.animationDelay   = (Math.random() * 10) + 's';
+      container.appendChild(p);
+    }
+  })();
+
+  // ── Toggle password ────────────────────────────────
+  document.getElementById('togglePwd').addEventListener('click', function() {
+    const inp = document.getElementById('password');
+    const isText = inp.type === 'text';
+    inp.type = isText ? 'password' : 'text';
+    this.textContent = isText ? '👁' : '🙈';
+  });
+
+  // ── Register link (placeholder) ────────────────────
+  document.getElementById('registerLink').addEventListener('click', function(e) {
+    e.preventDefault();
+    showInfo('Регистрация через администратора. Свяжитесь с вашим руководителем.');
+  });
+
+  // ── Login form ─────────────────────────────────────
+  document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const email    = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const btn      = document.getElementById('loginBtn');
+    const errEl    = document.getElementById('errorMsg');
+    const errText  = document.getElementById('errorText');
+
+    if (!email || !password) {
+      errText.textContent = 'Заполните все поля';
+      errEl.classList.add('visible');
+      return;
+    }
+
+    errEl.classList.remove('visible');
+    btn.classList.add('loading');
+    btn.disabled = true;
+
+    try {
+      const data = await apiCall('/api/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password })
+      });
+
+      if (data?.token || data?.accessToken) {
+        setToken(data.token || data.accessToken);
+        if (data.user) setUserInfo(data.user);
+        showSuccess('Добро пожаловать!');
+        setTimeout(() => { window.location.href = '/dashboard.html'; }, 500);
+      } else {
+        throw new Error('Неверный ответ сервера');
+      }
+    } catch (err) {
+      errText.textContent = err.message?.includes('401') || err.message?.includes('Неверн')
+        ? 'Неверный email или пароль'
+        : (err.message || 'Ошибка сервера. Попробуйте позже.');
+      errEl.classList.add('visible');
+    } finally {
+      btn.classList.remove('loading');
+      btn.disabled = false;
+    }
+  });
+</script>
 </body>
 </html>

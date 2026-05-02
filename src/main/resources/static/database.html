@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>НормаКонтроль — База данных</title>
+  <meta name="description" content="Просмотр данных PostgreSQL в реальном времени — для демонстрации преподавателю"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    .db-header-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 6px 14px;
+      background: rgba(39,174,96,.15);
+      border: 1px solid rgba(39,174,96,.3);
+      border-radius: 20px;
+      font-size: 13px; font-weight: 600;
+      color: #27AE60;
+    }
+
+    .db-header-badge::before {
+      content: '';
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #27AE60;
+      animation: pulse 1.5s infinite;
+    }
+
+    .score-bar-wrap { display: flex; align-items: center; gap: 8px; min-width: 120px; }
+    .score-bar-track { flex: 1; height: 6px; background: var(--border); border-radius: 100px; }
+    .score-bar-fill  { height: 100%; border-radius: 100px; }
+
+    .schema-section { margin-top: 32px; }
+    .schema-section h3 { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+    .schema-section p  { font-size: 13px; color: var(--text-muted); margin-bottom: 20px; }
+
+    .schema-diagram {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0;
+      align-items: flex-start;
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      position: relative;
+    }
+
+    .schema-row { display: flex; align-items: flex-start; gap: 0; flex-wrap: wrap; }
+
+    .schema-arrow {
+      display: flex; align-items: center;
+      padding: 0 8px;
+      margin-top: 36px;
+      color: var(--accent);
+      font-size: 20px;
+    }
+
+    .schema-col { display: flex; flex-direction: column; align-items: center; gap: 0; }
+
+    .schema-arrow-down {
+      font-size: 20px;
+      color: var(--accent);
+      padding: 4px 0;
+      text-align: center;
+    }
+
+    .schema-table {
+      background: var(--white);
+      border: 2px solid var(--border);
+      border-radius: var(--radius-sm);
+      min-width: 175px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .schema-table-header {
+      background: var(--accent);
+      color: #fff;
+      padding: 10px 14px;
+      font-weight: 700;
+      font-size: 13px;
+      border-radius: 6px 6px 0 0;
+    }
+
+    .schema-table-body { padding: 6px 0; }
+
+    .schema-field {
+      padding: 4px 14px;
+      font-size: 11px;
+      color: var(--text);
+      font-family: 'Courier New', monospace;
+      display: flex; justify-content: space-between; gap: 8px;
+    }
+
+    .schema-field .field-type { color: var(--text-muted); font-size: 10px; }
+    .schema-field.pk { color: var(--accent); font-weight: 700; }
+    .schema-field.fk { color: #ca6f1e; }
+
+    .schema-divider {
+      width: 2px; background: var(--accent);
+      min-height: 24px;
+      margin: 0 auto;
+    }
+
+    .id-short {
+      font-family: monospace;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .auto-refresh-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex; align-items: center; gap: 6px;
+    }
+
+    .auto-refresh-label::before {
+      content: '';
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      animation: pulse 2s infinite;
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <span class="logo-icon">🔍</span>
+      <span class="logo-title">НормаКонтроль</span>
+      <span class="logo-sub">ГОСТ 19.201-78</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a class="nav-item" href="dashboard.html"><span class="nav-icon">📊</span> Дашборд</a>
+      <a class="nav-item" href="documents.html"><span class="nav-icon">📄</span> Документы</a>
+      <a class="nav-item" href="check.html"><span class="nav-icon">🔍</span> Проверка</a>
+      <a class="nav-item" href="stats.html"><span class="nav-icon">📈</span> Статистика</a>
+      <a class="nav-item" href="database.html"><span class="nav-icon">🗄️</span> База данных</a>
+      <a class="nav-item" href="profile.html"><span class="nav-icon">👤</span> Профиль</a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-user">
+        <div class="avatar" id="sidebarAvatar">U</div>
+        <div class="user-info">
+          <div class="user-name" id="sidebarUserName">Загрузка...</div>
+          <div class="user-role" id="sidebarUserRole">Пользователь</div>
+        </div>
+      </div>
+      <button class="btn-logout" onclick="logout()">🚪 Выйти</button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main-content">
+    <div class="page-header">
+      <div>
+        <div class="page-title">🗄️ Данные в PostgreSQL</div>
+        <div class="page-subtitle">Всё что сохраняется в базе данных — в реальном времени</div>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px">
+        <span class="auto-refresh-label">Автообновление</span>
+        <span class="db-header-badge">🐘 PostgreSQL подключена</span>
+      </div>
+    </div>
+
+    <div class="page-body">
+
+      <!-- Tabs -->
+      <div class="tabs" id="dbTabs">
+        <button class="tab active" data-tab="users"   onclick="switchTab('users')">👥 Пользователи</button>
+        <button class="tab"        data-tab="docs"    onclick="switchTab('docs')">📄 Документы</button>
+        <button class="tab"        data-tab="results" onclick="switchTab('results')">✅ Результаты проверок</button>
+        <button class="tab"        data-tab="audit"   onclick="switchTab('audit')">📋 Журнал аудита</button>
+      </div>
+
+      <!-- ── USERS ─────────────────────────────── -->
+      <div class="tab-content active card" id="tab-users">
+        <div class="card-header">
+          <span class="card-title">👥 Таблица <code>users</code></span>
+          <button class="btn btn-secondary btn-sm" onclick="loadUsers()">🔄</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Email</th>
+                <th>Имя</th>
+                <th>Роль</th>
+                <th>Дата регистрации</th>
+                <th>Последний вход</th>
+              </tr>
+            </thead>
+            <tbody id="usersTableBody">
+              <tr><td colspan="6" style="text-align:center;padding:24px"><div class="spinner" style="margin:auto"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── DOCUMENTS ──────────────────────────── -->
+      <div class="tab-content card" id="tab-docs">
+        <div class="card-header">
+          <span class="card-title">📄 Таблица <code>documents</code></span>
+          <button class="btn btn-secondary btn-sm" onclick="loadDocsTab()">🔄</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Имя файла</th>
+                <th>Тип</th>
+                <th>Размер</th>
+                <th>Владелец</th>
+                <th>Статус</th>
+                <th>Дата загрузки</th>
+              </tr>
+            </thead>
+            <tbody id="docsDbTableBody">
+              <tr><td colspan="7" style="text-align:center;padding:24px"><div class="spinner" style="margin:auto"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── CHECK RESULTS ─────────────────────── -->
+      <div class="tab-content card" id="tab-results">
+        <div class="card-header">
+          <span class="card-title">✅ Таблица <code>check_results</code></span>
+          <button class="btn btn-secondary btn-sm" onclick="loadResults()">🔄</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID документа</th>
+                <th>Набор правил</th>
+                <th>Балл</th>
+                <th>Статус</th>
+                <th>Нарушений</th>
+                <th>Время обработки</th>
+                <th>Дата</th>
+              </tr>
+            </thead>
+            <tbody id="resultsTableBody">
+              <tr><td colspan="7" style="text-align:center;padding:24px"><div class="spinner" style="margin:auto"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── AUDIT LOG ──────────────────────────── -->
+      <div class="tab-content card" id="tab-audit">
+        <div class="card-header">
+          <span class="card-title">📋 Таблица <code>audit_log</code></span>
+          <div style="display:flex;align-items:center;gap:10px">
+            <span class="auto-refresh-label">Обновление каждые 5с</span>
+            <button class="btn btn-secondary btn-sm" onclick="loadAudit()">🔄</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Время</th>
+                <th>Пользователь</th>
+                <th>Действие</th>
+                <th>Ресурс</th>
+                <th>IP</th>
+                <th>Результат</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody">
+              <tr><td colspan="6" style="text-align:center;padding:24px"><div class="spinner" style="margin:auto"></div></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ── DB SCHEMA ──────────────────────────── -->
+      <div class="schema-section">
+        <h3>🗂 Схема базы данных</h3>
+        <p>Структура таблиц PostgreSQL и связи между ними</p>
+
+        <div class="schema-diagram">
+          <div class="schema-row">
+            <!-- users -->
+            <div class="schema-col">
+              <div class="schema-table">
+                <div class="schema-table-header">👤 users</div>
+                <div class="schema-table-body">
+                  <div class="schema-field pk"><span>id</span><span class="field-type">UUID PK</span></div>
+                  <div class="schema-field"><span>email</span><span class="field-type">VARCHAR</span></div>
+                  <div class="schema-field"><span>password</span><span class="field-type">VARCHAR</span></div>
+                  <div class="schema-field"><span>name</span><span class="field-type">VARCHAR</span></div>
+                  <div class="schema-field"><span>role</span><span class="field-type">ENUM</span></div>
+                  <div class="schema-field"><span>created_at</span><span class="field-type">TIMESTAMP</span></div>
+                  <div class="schema-field"><span>last_login</span><span class="field-type">TIMESTAMP</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="schema-arrow">──▶</div>
+
+            <!-- documents -->
+            <div class="schema-col">
+              <div class="schema-table">
+                <div class="schema-table-header">📄 documents</div>
+                <div class="schema-table-body">
+                  <div class="schema-field pk"><span>id</span><span class="field-type">UUID PK</span></div>
+                  <div class="schema-field"><span>file_name</span><span class="field-type">VARCHAR</span></div>
+                  <div class="schema-field"><span>file_type</span><span class="field-type">VARCHAR</span></div>
+                  <div class="schema-field"><span>file_size</span><span class="field-type">BIGINT</span></div>
+                  <div class="schema-field"><span>status</span><span class="field-type">ENUM</span></div>
+                  <div class="schema-field fk"><span>owner_id</span><span class="field-type">UUID FK</span></div>
+                  <div class="schema-field"><span>created_at</span><span class="field-type">TIMESTAMP</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="schema-arrow">──▶</div>
+
+            <!-- check_results -->
+            <div class="schema-col">
+              <div class="schema-table">
+                <div class="schema-table-header">✅ check_results</div>
+                <div class="schema-table-body">
+                  <div class="schema-field pk"><span>id</span><span class="field-type">UUID PK</span></div>
+                  <div class="schema-field fk"><span>document_id</span><span class="field-type">UUID FK</span></div>
+                  <div class="schema-field"><span>rule_set</span><span class="field-type">VARCHAR</span></div>
+                  <div class="schema-field"><span>score</span><span class="field-type">INTEGER</span></div>
+                  <div class="schema-field"><span>passed</span><span class="field-type">BOOLEAN</span></div>
+                  <div class="schema-field"><span>processing_ms</span><span class="field-type">BIGINT</span></div>
+                  <div class="schema-field"><span>checked_at</span><span class="field-type">TIMESTAMP</span></div>
+                </div>
+              </div>
+              <div class="schema-arrow-down">│<br>▼</div>
+              <!-- violations -->
+              <div class="schema-table">
+                <div class="schema-table-header" style="background:#E74C3C">⚠️ violations</div>
+                <div class="schema-table-body">
+                  <div class="schema-field pk"><span>id</span><span class="field-type">UUID PK</span></div>
+                  <div class="schema-field fk"><span>check_result_id</span><span class="field-type">UUID FK</span></div>
+                  <div class="schema-field"><span>rule_code</span><span class="field-type">VARCHAR</span></div>
+                  <div class="schema-field"><span>severity</span><span class="field-type">ENUM</span></div>
+                  <div class="schema-field"><span>description</span><span class="field-type">TEXT</span></div>
+                  <div class="schema-field"><span>page</span><span class="field-type">INTEGER</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:flex;flex-direction:column;justify-content:flex-start;padding-top:8px">
+              <div class="schema-arrow" style="margin-top:0; align-self:flex-start; padding-top:36px">──▶</div>
+            </div>
+
+            <!-- audit_log -->
+            <div class="schema-col">
+              <div class="schema-table">
+                <div class="schema-table-header" style="background:#8E44AD">📋 audit_log</div>
+                <div class="schema-table-body">
+                  <div class="schema-field pk"><span>id</span><span class="field-type">UUID PK</span></div>
+                  <div class="schema-field fk"><span>user_id</span><span class="field-type">UUID FK</span></div>
+                  <div class="schema-field"><span>action</span><span class="field-type">VARCHAR</span></div>
+                  <div class="schema-field"><span>resource</span><span class="field-type">VARCHAR</span></div>
+                  <div class="schema-field"><span>ip_address</span><span class="field-type">VARCHAR</span></div>
+                  <div class="schema-field"><span>result</span><span class="field-type">VARCHAR</span></div>
+                  <div class="schema-field"><span>created_at</span><span class="field-type">TIMESTAMP</span></div>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- /schema-row -->
+        </div><!-- /schema-diagram -->
+      </div><!-- /schema-section -->
+
+    </div><!-- /page-body -->
+  </div><!-- /main-content -->
+</div><!-- /app-layout -->
+
+<script src="app.js"></script>
+<script>
+initProtectedPage();
+
+let auditTimer = null;
+let activeTab  = 'users';
+
+// ── Tab switching ───────────────────────────────────
+function switchTab(name) {
+  activeTab = name;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + name));
+
+  // Load data for clicked tab
+  if (name === 'users')   loadUsers();
+  if (name === 'docs')    loadDocsTab();
+  if (name === 'results') loadResults();
+  if (name === 'audit')   loadAudit();
+}
+
+// ── Helpers ─────────────────────────────────────────
+function shortId(id) {
+  return `<span class="id-short" title="${id}">${(id || '').slice(0,8)}…</span>`;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function roleBadge(role) {
+  return role === 'ADMIN'
+    ? '<span class="badge badge-red">👑 Admin</span>'
+    : '<span class="badge badge-blue">👤 User</span>';
+}
+
+function scoreMiniBar(score) {
+  if (score == null) return '—';
+  const color = getScoreColor(score);
+  return `<div class="score-bar-wrap">
+    <span style="font-weight:600;color:${color};min-width:28px">${score}</span>
+    <div class="score-bar-track">
+      <div class="score-bar-fill" style="width:${score}%;background:${color}"></div>
+    </div>
+  </div>`;
+}
+
+// ── Users ───────────────────────────────────────────
+async function loadUsers() {
+  const tbody = document.getElementById('usersTableBody');
+  tbody.innerHTML = `<tr><td colspan="6">${skRows(6)}</td></tr>`;
+  try {
+    const data  = await apiCall('/api/v1/admin/users');
+    const users = data?.content ?? data ?? [];
+    if (!users.length) {
+      tbody.innerHTML = `<tr><td colspan="6">${emptyState('👥','Нет пользователей','')}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = users.map(u => `<tr>
+      <td>${shortId(u.id)}</td>
+      <td>${escHtml(u.email || '—')}</td>
+      <td>${escHtml(u.name || u.username || '—')}</td>
+      <td>${roleBadge(u.role)}</td>
+      <td class="text-muted">${formatDate(u.createdAt || u.registeredAt)}</td>
+      <td class="text-muted">${formatDate(u.lastLoginAt || u.lastLogin)}</td>
+    </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-muted" style="text-align:center;padding:20px">⚠️ ${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+// ── Documents tab ───────────────────────────────────
+async function loadDocsTab() {
+  const tbody = document.getElementById('docsDbTableBody');
+  tbody.innerHTML = `<tr><td colspan="7">${skRows(7)}</td></tr>`;
+  try {
+    const data = await apiCall('/api/v1/documents?size=50&sort=createdAt,desc');
+    const docs = data?.content ?? data ?? [];
+    if (!docs.length) {
+      tbody.innerHTML = `<tr><td colspan="7">${emptyState('📄','Документов нет','')}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = docs.map(d => {
+      const name = d.fileName || d.name || '—';
+      return `<tr>
+        <td>${shortId(d.id)}</td>
+        <td>${escHtml(name)}</td>
+        <td><span class="badge badge-grey">${escHtml(name.split('.').pop().toUpperCase())}</span></td>
+        <td class="text-muted">${formatFileSize(d.fileSize || d.size)}</td>
+        <td class="text-muted">${escHtml(d.ownerEmail || d.owner?.email || shortId(d.ownerId))}</td>
+        <td>${statusBadge(d.status)}</td>
+        <td class="text-muted">${formatDate(d.createdAt)}</td>
+      </tr>`;
+    }).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-muted" style="text-align:center;padding:20px">⚠️ ${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+// ── Check results ────────────────────────────────────
+async function loadResults() {
+  const tbody = document.getElementById('resultsTableBody');
+  tbody.innerHTML = `<tr><td colspan="7">${skRows(7)}</td></tr>`;
+  try {
+    const data = await apiCall('/api/v1/admin/check-results');
+    const rows = data?.content ?? data ?? [];
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="7">${emptyState('✅','Результатов нет','Запустите хотя бы одну проверку')}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `<tr>
+      <td>${shortId(r.documentId || r.document?.id)}</td>
+      <td><span class="badge badge-blue">${escHtml(r.ruleSet || r.ruleset || 'ГОСТ')}</span></td>
+      <td>${scoreMiniBar(r.score)}</td>
+      <td>${r.passed || r.score >= 80
+        ? '<span class="badge badge-green">✅ Прошёл</span>'
+        : '<span class="badge badge-red">❌ Не прошёл</span>'}</td>
+      <td style="text-align:center">${r.violationsCount ?? r.violations?.length ?? '—'}</td>
+      <td class="text-muted">${r.processingTimeMs != null ? r.processingTimeMs + ' мс' : '—'}</td>
+      <td class="text-muted">${formatDate(r.checkedAt || r.createdAt)}</td>
+    </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-muted" style="text-align:center;padding:20px">⚠️ ${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+// ── Audit log ────────────────────────────────────────
+async function loadAudit() {
+  const tbody = document.getElementById('auditTableBody');
+  try {
+    const data = await apiCall('/api/v1/admin/audit?size=30&sort=createdAt,desc');
+    const rows = data?.content ?? data ?? [];
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="6">${emptyState('📋','Лог пуст','Действия появятся по мере использования системы')}</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map(r => `<tr>
+      <td class="text-muted">${formatDate(r.createdAt || r.timestamp)}</td>
+      <td>${escHtml(r.userEmail || r.user?.email || r.userId || '—')}</td>
+      <td>${auditBadge(r.action)}</td>
+      <td class="text-muted" style="font-family:monospace;font-size:12px">${escHtml(r.resource || '—')}</td>
+      <td class="text-muted" style="font-family:monospace;font-size:12px">${escHtml(r.ipAddress || r.ip || '—')}</td>
+      <td>${r.result === 'SUCCESS' || r.result === 'OK'
+        ? '<span class="badge badge-green">✓ OK</span>'
+        : '<span class="badge badge-red">✗ Ошибка</span>'}</td>
+    </tr>`).join('');
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="text-muted" style="text-align:center;padding:20px">⚠️ ${escHtml(e.message)}</td></tr>`;
+  }
+}
+
+// Skeleton placeholder
+function skRows(cols) {
+  return `<div style="display:flex;justify-content:center;padding:24px"><div class="spinner"></div></div>`;
+}
+
+// ── Initial load + auto-refresh ──────────────────────
+loadUsers();
+
+// Auto-refresh audit every 5s when on that tab
+setInterval(() => {
+  if (activeTab === 'audit') loadAudit();
+}, 5000);
+</script>
+</body>
+</html>
