@@ -2,9 +2,9 @@ FROM gradle:8.5-jdk17 AS builder
 WORKDIR /app
 COPY gradle/ gradle/
 COPY gradlew build.gradle settings.gradle ./
-RUN chmod +x gradlew && ./gradlew dependencies --no-daemon
+RUN gradle dependencies --no-daemon
 COPY src/ src/
-RUN ./gradlew bootJar --no-daemon -x test
+RUN gradle bootJar --no-daemon -x test
 
 FROM eclipse-temurin:17-jre-alpine AS runtime
 RUN apk add --no-cache wget

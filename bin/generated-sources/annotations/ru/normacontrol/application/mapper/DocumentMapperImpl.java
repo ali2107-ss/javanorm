@@ -7,7 +7,7 @@ import ru.normacontrol.domain.entity.Document;
 
 @Generated(
     value = "org.mapstruct.ap.MappingProcessor",
-    date = "2026-05-02T16:22:49+0500",
+    date = "2026-05-02T17:10:09+0500",
     comments = "version: 1.5.5.Final, compiler: Eclipse JDT (IDE) 3.46.0.v20260407-0427, environment: Java 21.0.10 (Eclipse Adoptium)"
 )
 @Component

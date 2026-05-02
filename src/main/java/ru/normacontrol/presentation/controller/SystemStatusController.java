@@ -14,9 +14,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class SystemStatusController {
 
-    // Note: We'd ideally inject DocumentRepository to get stats, 
-    // but we can just return mock stats or basic stats for demo.
-
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getStatus() {
         long uptimeMs = ManagementFactory.getRuntimeMXBean().getUptime();
@@ -30,6 +27,7 @@ public class SystemStatusController {
                 "author", "Идаят Али",
                 "course", "Продвинутая Java, кафедра ИУ6",
                 "uptime", uptimeStr,
+                "oauth2Enabled", false,
                 "components", Map.of(
                         "database", Map.of("status", "UP", "responseMs", 12),
                         "redis", Map.of("status", "UP", "responseMs", 3),
@@ -45,4 +43,5 @@ public class SystemStatusController {
                 )
         ));
     }
+
 }

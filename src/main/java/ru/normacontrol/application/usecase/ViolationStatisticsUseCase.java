@@ -70,14 +70,7 @@ public class ViolationStatisticsUseCase {
 
         List<ViolationStatDto> result = new ArrayList<>();
         for (ViolationJpaRepository.TopViolationProjection row : raw) {
-            double pct = total > 0 ? (double) row.getCount() / total * 100.0 : 0;
-            result.add(ViolationStatDto.builder()
-                    .ruleCode(row.getRuleCode())
-                    .description(row.getDescription())
-                    .count(row.getCount())
-                    .percentage(Math.round(pct * 10.0) / 10.0)
-                    .avgSeverity(inferSeverityFromCode(row.getRuleCode()))
-                    .build());
+            result.add(new ViolationStatDto(row.getRuleCode(), row.getCount(), row.getDescription()));
         }
 
         return result.stream()
@@ -112,7 +105,6 @@ public class ViolationStatisticsUseCase {
                 .map(e -> {
                     List<ru.normacontrol.infrastructure.persistence.entity.CheckResultJpaEntity> dayResults = e.getValue();
                     double avg = dayResults.stream()
-                            .filter(r -> r.getComplianceScore() != null)
                             .mapToInt(ru.normacontrol.infrastructure.persistence.entity.CheckResultJpaEntity::getComplianceScore)
                             .average()
                             .orElse(0.0);

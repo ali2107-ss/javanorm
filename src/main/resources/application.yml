@@ -6,9 +6,9 @@ spring:
   application:
     name: normacontrol
   datasource:
-    url: ${SPRING_DATASOURCE_URL}
-    username: ${SPRING_DATASOURCE_USERNAME}
-    password: ${SPRING_DATASOURCE_PASSWORD}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/normacontrol}
+    username: ${SPRING_DATASOURCE_USERNAME:norma}
+    password: ${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:normacontrol123}}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5
@@ -22,27 +22,18 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
   liquibase:
+    enabled: true
     change-log: classpath:db/changelog/db.changelog-master.xml
   data:
     redis:
       host: ${SPRING_REDIS_HOST:localhost}
-      port: 6379
+      port: ${SPRING_REDIS_PORT:6379}
       password: ${SPRING_REDIS_PASSWORD:${REDIS_PASSWORD:}}
   kafka:
     bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     consumer:
       group-id: normacontrol-group
       auto-offset-reset: earliest
-  security:
-    oauth2:
-      client:
-        registration:
-          github:
-            client-id: ${GITHUB_CLIENT_ID:}
-            client-secret: ${GITHUB_CLIENT_SECRET:}
-          google:
-            client-id: ${GOOGLE_CLIENT_ID:}
-            client-secret: ${GOOGLE_CLIENT_SECRET:}
   servlet:
     multipart:
       max-file-size: 50MB
@@ -67,19 +58,19 @@ app:
   base-url: ${APP_BASE_URL:http://localhost:8080}
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:normacontrol-secret-key-min-256-bits-change-in-prod}
   access-token-expiration: 3600000
   refresh-token-expiration: 2592000000
 
 minio:
   endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
   access-key: ${MINIO_ACCESS_KEY:minioadmin}
-  secret-key: ${MINIO_SECRET_KEY}
+  secret-key: ${MINIO_SECRET_KEY:${MINIO_PASSWORD:minio123}}
   bucket-name: normacontrol-documents
 
 ai:
   anthropic:
-    api-key: ${ANTHROPIC_API_KEY}
+    api-key: ${ANTHROPIC_API_KEY:sk-ant-your-key-here}
     model: claude-3-haiku-20240307
     max-tokens: 500
     timeout-seconds: 5
@@ -98,8 +89,8 @@ management:
 
 kafka:
   topic:
-    document-check: document-check-topic
-    check-result: check-result-topic
+    document-check: ${KAFKA_TOPIC_DOCUMENT_CHECK:normacontrol.check.requested}
+    check-result: ${KAFKA_TOPIC_CHECK_RESULT:normacontrol.check.completed}
 
 springdoc:
   api-docs:

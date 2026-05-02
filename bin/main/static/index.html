@@ -217,12 +217,13 @@
       </div>
     </form>
 
+    <div id="oauthBlock">
     <div class="divider">или</div>
-
     <a href="/oauth2/authorization/github" class="btn-github">
       <svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/></svg>
       Войти через GitHub
     </a>
+    </div>
 
     <div class="register-link">
       Нет аккаунта? <a href="#" id="registerLink">Зарегистрироваться</a>
@@ -232,13 +233,10 @@
     <div style="margin-top: 32px; padding: 20px; background: rgba(0,0,0,0.03); border-radius: 12px; border: 1px dashed rgba(0,0,0,0.1);">
       <h3 style="font-size: 14px; margin-bottom: 16px; color: var(--text); text-align: center;">Быстрый вход для демонстрации</h3>
       <div style="display: flex; flex-direction: column; gap: 8px;">
-        <button type="button" class="btn btn-secondary btn-block" style="justify-content: flex-start; gap: 10px;" onclick="demoLogin('admin@normacontrol.ru', 'Admin1234!')">
+        <button type="button" class="btn btn-secondary btn-block" id="btnAdmin" style="justify-content: flex-start; gap: 10px;">
           👑 Войти как Админ
         </button>
-        <button type="button" class="btn btn-secondary btn-block" style="justify-content: flex-start; gap: 10px;" onclick="demoLogin('reviewer@normacontrol.ru', 'Review123!')">
-          🔍 Войти как Рецензент
-        </button>
-        <button type="button" class="btn btn-secondary btn-block" style="justify-content: flex-start; gap: 10px;" onclick="demoLogin('student@normacontrol.ru', 'Student123!')">
+        <button type="button" class="btn btn-secondary btn-block" id="btnStudent" style="justify-content: flex-start; gap: 10px;">
           👤 Войти как Студент
         </button>
       </div>
@@ -250,6 +248,19 @@
 <script>
   // Redirect if already logged in
   if (getToken()) window.location.href = '/dashboard.html';
+
+  fetch('/api/v1/system/status')
+    .then(resp => resp.ok ? resp.json() : null)
+    .then(data => {
+      const oauthBlock = document.getElementById('oauthBlock');
+      if (oauthBlock && (!data || data.oauth2Enabled === false)) {
+        oauthBlock.style.display = 'none';
+      }
+    })
+    .catch(() => {
+      const oauthBlock = document.getElementById('oauthBlock');
+      if (oauthBlock) oauthBlock.style.display = 'none';
+    });
 
   // ── Particles ──────────────────────────────────────
   (function() {
@@ -279,26 +290,29 @@
     showInfo('Регистрация через администратора. Свяжитесь с вашим руководителем.');
   });
 
-  // ── Demo login ─────────────────────────────────────
-  function demoLogin(email, password) {
-    document.getElementById('email').value = email;
-    document.getElementById('password').value = password;
-    document.getElementById('loginBtn').click();
+  function showLoginError(message) {
+    const errEl = document.getElementById('errorMsg');
+    const errText = document.getElementById('errorText');
+    errText.textContent = message;
+    errEl.classList.add('visible');
   }
 
-  // ── Login form ─────────────────────────────────────
-  document.getElementById('loginForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
+  async function submitLogin(payload) {
+    return fetch('/api/v1/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  }
 
-    const email    = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
-    const btn      = document.getElementById('loginBtn');
-    const errEl    = document.getElementById('errorMsg');
-    const errText  = document.getElementById('errorText');
+  async function login() {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const btn = document.getElementById('loginBtn');
+    const errEl = document.getElementById('errorMsg');
 
     if (!email || !password) {
-      errText.textContent = 'Заполните все поля';
-      errEl.classList.add('visible');
+      showLoginError('Введите email и пароль');
       return;
     }
 
@@ -307,29 +321,57 @@
     btn.disabled = true;
 
     try {
-      const data = await apiCall('/api/v1/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email, password })
-      });
+      const attempts = [
+        { login: email, password: password },
+        { username: email, password: password },
+        { email: email, password: password }
+      ];
 
-      if (data?.token || data?.accessToken) {
-        setToken(data.token || data.accessToken);
-        if (data.user) setUserInfo(data.user);
-        showSuccess('Добро пожаловать!');
-        setTimeout(() => { window.location.href = '/dashboard.html'; }, 500);
-      } else {
-        throw new Error('Неверный ответ сервера');
+      let response = null;
+      for (const payload of attempts) {
+        response = await submitLogin(payload);
+        if (response.ok) break;
       }
-    } catch (err) {
-      errText.textContent = err.message?.includes('401') || err.message?.includes('Неверн')
-        ? 'Неверный email или пароль'
-        : (err.message || 'Ошибка сервера. Попробуйте позже.');
-      errEl.classList.add('visible');
+
+      if (!response || !response.ok) {
+        showLoginError('Неверный email или пароль');
+        return;
+      }
+
+      const data = await response.json();
+      const token = data.accessToken || data.access_token || data.token;
+      if (!token) {
+        showLoginError('Неверный ответ сервера');
+        return;
+      }
+
+      localStorage.setItem('jwt_token', token);
+      if (data.user) setUserInfo(data.user);
+      window.location.href = '/dashboard.html';
+    } catch (e) {
+      showLoginError('Ошибка подключения к серверу');
     } finally {
       btn.classList.remove('loading');
       btn.disabled = false;
     }
+  }
+
+  document.getElementById('loginForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    await login();
   });
+
+  document.getElementById('btnAdmin').onclick = async function() {
+    document.getElementById('email').value = 'admin@demo.ru';
+    document.getElementById('password').value = 'Admin1234!';
+    await login();
+  };
+
+  document.getElementById('btnStudent').onclick = async function() {
+    document.getElementById('email').value = 'user@demo.ru';
+    document.getElementById('password').value = 'User1234!';
+    await login();
+  };
 </script>
 </body>
 </html>
