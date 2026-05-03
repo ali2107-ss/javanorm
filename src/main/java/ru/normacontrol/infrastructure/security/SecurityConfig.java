@@ -35,7 +35,8 @@ public class SecurityConfig {
                                 "/*.js", "/*.css", "/*.ico",
                                 "/static/**"
                         ).permitAll()
-                        .requestMatchers("/api/v1/auth/**").permitAll()
+                        .requestMatchers("/api/v1/auth/**", "/v1/auth/**").permitAll()
+                        .requestMatchers("/api/v1/system/**").permitAll()
                         .requestMatchers("/api/docs/**",
                                 "/api/swagger-ui/**",
                                 "/v3/api-docs/**").permitAll()

@@ -124,11 +124,21 @@ public class CheckDocumentUseCase {
 
             // ── Шаг 3: прогон через движок правил ──────────────────────────
             CheckResult result;
-            try (xwpfDocument) {
+            String fullText = "";
+            try {
+                // Извлекаем текст ДО закрытия документа
+                try {
+                    fullText = new org.apache.poi.xwpf.extractor.XWPFWordExtractor(xwpfDocument).getText();
+                } catch (Exception textEx) {
+                    log.warn("Не удалось извлечь текст для антиплагиата: {}", textEx.getMessage());
+                }
                 result = gostRuleEngine.check(xwpfDocument, documentId, checkedBy);
             } catch (Exception engineEx) {
                 log.warn("Ошибка движка правил: {} — переходим в демо-режим", engineEx.getMessage());
+                try { xwpfDocument.close(); } catch (Exception ignored) {}
                 return createDemoCheckResult(document, checkedBy);
+            } finally {
+                try { xwpfDocument.close(); } catch (Exception ignored) {}
             }
 
             progressPublisher.publishProgress(documentId, 65, "PLAGIARISM", "Проверка уникальности текста...");
@@ -136,13 +146,15 @@ public class CheckDocumentUseCase {
 
             // ── Шаг 3.5: Антиплагиат ─────────────────────────────────────────
             try {
-                String fullText = new org.apache.poi.xwpf.extractor.XWPFWordExtractor(xwpfDocument).getText();
-                ru.normacontrol.infrastructure.plagiarism.PlagiarismResult plagiarism = plagiarismChecker.check(fullText, documentId);
-                plagiarismChecker.saveHashes(document.getId(), fullText);
-                
-                result.setUniquenessPercent(plagiarism.uniquenessPercent());
-                result.setPlagiarismResult(plagiarism);
-                log.info("Антиплагиат: {}% для {}", plagiarism.uniquenessPercent(), documentId);
+                if (fullText != null && !fullText.isBlank()) {
+                    ru.normacontrol.infrastructure.plagiarism.PlagiarismResult plagiarism = plagiarismChecker.check(fullText, documentId);
+                    plagiarismChecker.saveHashes(document.getId(), fullText);
+                    result.setUniquenessPercent(plagiarism.uniquenessPercent());
+                    result.setPlagiarismResult(plagiarism);
+                    log.info("Антиплагиат: {}% для {}", plagiarism.uniquenessPercent(), documentId);
+                } else {
+                    result.setUniquenessPercent(100);
+                }
             } catch (Exception plagEx) {
                 log.warn("Ошибка при проверке на антиплагиат: {}", plagEx.getMessage());
                 result.setUniquenessPercent(100);

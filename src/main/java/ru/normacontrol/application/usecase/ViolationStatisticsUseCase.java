@@ -173,8 +173,15 @@ public class ViolationStatisticsUseCase {
      */
     private String extractPrefix(String ruleCode) {
         if (ruleCode == null) return "OTHER";
-        int dash = ruleCode.indexOf('-');
-        return dash > 0 ? ruleCode.substring(0, dash) : ruleCode;
+        // Handle both formats: "FMT-001" and "GOST19.201.STRUCT-001"
+        String code = ruleCode;
+        // If it contains dots (e.g. GOST19.201.STRUCT-001), take the last segment before dash
+        if (code.contains(".")) {
+            String[] dotParts = code.split("\\.");
+            code = dotParts[dotParts.length - 1]; // "STRUCT-001"
+        }
+        int dash = code.indexOf('-');
+        return dash > 0 ? code.substring(0, dash) : code;
     }
 
     /**
