@@ -2,64 +2,127 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>НормаКонтроль - О проекте</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <title>НормаКонтроль - О программе</title>
   <link rel="stylesheet" href="style.css">
+  <style>
+    .hero { background: #1C1C1E; padding: 80px; text-align: center; color: white; }
+    .hero-title { font-size: 56px; font-weight: 800; margin-bottom: 16px; }
+    .hero-sub { color: #98989A; font-size: 20px; margin-bottom: 40px; }
+    .hero-line { width: 60px; height: 4px; background: var(--accent); margin: 0 auto 40px; border-radius: 2px; }
+    .hero-stats { display: flex; justify-content: center; gap: 60px; }
+    .stat-item { text-align: center; }
+    .stat-val { font-size: 32px; font-weight: bold; color: var(--accent); margin-bottom: 4px; }
+    .stat-label { color: #98989A; font-size: 14px; }
+    
+    .section { padding: 80px; background: white; }
+    .section-title { font-size: 32px; font-weight: 700; text-align: center; margin-bottom: 40px; }
+    
+    .tech-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+    .tech-card { border: 1px solid var(--border); border-radius: 16px; padding: 24px; text-align: center; transition: 0.25s all ease; }
+    .tech-card:hover { border-color: var(--accent); transform: translateY(-6px); box-shadow: 0 12px 40px rgba(255,107,0,0.1); }
+    .tech-icon { width: 48px; height: 48px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; color: var(--text); }
+    
+    .arch-layer { background: white; padding: 20px; border-radius: 12px; margin-bottom: 16px; display: flex; gap: 24px; align-items: center; box-shadow: var(--shadow); }
+    .arch-layer.p { border-left: 4px solid var(--accent); }
+    .arch-layer.a { border-left: 4px solid var(--success); }
+    .arch-layer.i { border-left: 4px solid #007AFF; }
+    .arch-layer.d { border-left: 4px solid #8B5CF6; }
+    
+    .feat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; }
+    .feat-card { display: flex; align-items: center; gap: 16px; padding: 20px; border: 1px solid var(--border); border-radius: 12px; }
+    
+    .author-sec { background: #1C1C1E; padding: 60px; text-align: center; color: white; }
+    .author-ava { width: 80px; height: 80px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 28px; font-weight: bold; margin: 0 auto 20px; }
+  </style>
 </head>
 <body>
-  <div class="layout">
-    <script src="app.js"></script>
-    <script>document.write(pageShell('/about.html'));</script>
-    <main class="main">
-      <header class="topbar">
-        <div>
-          <h1>НормаКонтроль v1.0</h1>
-          <p>Автор: Идаят Али | Курс: Продвинутая Java | 2025</p>
-        </div>
-      </header>
-
-      <section class="card">
-        <h2>Технологии</h2>
-        <div class="grid grid-3">
-          <div class="card tech"><span>☕</span>Java 17</div>
-          <div class="card tech"><span>🍃</span>Spring Boot 3</div>
-          <div class="card tech"><span>🐘</span>PostgreSQL</div>
-          <div class="card tech"><span>🔴</span>Redis</div>
-          <div class="card tech"><span>📨</span>Kafka</div>
-          <div class="card tech"><span>🐳</span>Docker</div>
-          <div class="card tech"><span>📄</span>Apache POI</div>
-          <div class="card tech"><span>🤖</span>Anthropic AI</div>
-          <div class="card tech"><span>📊</span>Chart.js</div>
-        </div>
-      </section>
-
-      <section class="card" style="margin-top:22px">
-        <h2>Архитектура</h2>
-        <div class="grid" style="max-width:760px">
-          <div class="layer" style="background:#2f7ed8"><span>PRESENTATION</span><span>REST + WS</span></div>
-          <div class="layer" style="background:#1f9d55"><span>APPLICATION</span><span>Use Cases</span></div>
-          <div class="layer" style="background:#d97706"><span>INFRASTRUCTURE</span><span>JPA + Kafka</span></div>
-          <div class="layer" style="background:#dc2626"><span>DOMAIN</span><span>GostRuleEngine</span></div>
-        </div>
-      </section>
-
-      <section class="card" style="margin-top:22px">
-        <h2>Фишки проекта</h2>
-        <div class="grid grid-4">
-          <div class="card tech">🔍<br>Движок ГОСТ</div>
-          <div class="card tech">🤖<br>AI-рекомендации</div>
-          <div class="card tech">⚡<br>WebSocket</div>
-          <div class="card tech">📊<br>Сравнение версий</div>
-          <div class="card tech">📄<br>PDF-отчёты</div>
-          <div class="card tech">🔧<br>Авто-исправление</div>
-          <div class="card tech">🔐<br>JWT + RBAC</div>
-          <div class="card tech">📝<br>Audit Log</div>
-        </div>
-      </section>
-    </main>
+  
+  <div style="position: absolute; top: 24px; left: 24px;">
+    <button class="btn btn-primary" onclick="window.history.back()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:8px;"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+      Назад
+    </button>
   </div>
-  <script>initPage();</script>
+
+  <div class="hero">
+    <div class="hero-title">НормаКонтроль</div>
+    <div class="hero-sub">Enterprise-система проверки документов</div>
+    <div class="hero-line"></div>
+    <div class="hero-stats">
+      <div class="stat-item"><div class="stat-val">6</div><div class="stat-label">Стратегий проверки</div></div>
+      <div class="stat-item"><div class="stat-val">100%</div><div class="stat-label">Автоматизация</div></div>
+      <div class="stat-item"><div class="stat-val">Java 17</div><div class="stat-label">Spring Boot 3</div></div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Технологический стек</div>
+    <div class="tech-grid">
+      <div class="tech-card">
+        <div class="tech-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><polyline points="11 3 11 11 14 8 17 11 17 3"></polyline></svg></div>
+        <div style="font-weight: bold; font-size: 16px;">Spring Boot 3</div>
+        <div style="color: var(--text-gray); font-size: 14px; margin-top: 8px;">Ядро Backend</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"></ellipse><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path></svg></div>
+        <div style="font-weight: bold; font-size: 16px;">PostgreSQL</div>
+        <div style="color: var(--text-gray); font-size: 14px; margin-top: 8px;">Реляционная БД</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg></div>
+        <div style="font-weight: bold; font-size: 16px;">Apache POI</div>
+        <div style="color: var(--text-gray); font-size: 14px; margin-top: 8px;">Парсинг DOCX</div>
+      </div>
+      <div class="tech-card">
+        <div class="tech-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg></div>
+        <div style="font-weight: bold; font-size: 16px;">Vanilla JS</div>
+        <div style="color: var(--text-gray); font-size: 14px; margin-top: 8px;">Быстрый Frontend</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" style="background: var(--bg-secondary);">
+    <div class="section-title">Clean Architecture</div>
+    <div style="max-width: 800px; margin: 0 auto;">
+      <div class="arch-layer p" style="animation: slideIn 0.4s ease;">
+        <div style="font-weight: bold; width: 150px;">PRESENTATION</div>
+        <div style="color: var(--text-gray);">REST Контроллеры, DTO, Обработка HTTP-запросов и ответов, Exception Handlers</div>
+      </div>
+      <div class="arch-layer a" style="animation: slideIn 0.5s ease;">
+        <div style="font-weight: bold; width: 150px;">APPLICATION</div>
+        <div style="color: var(--text-gray);">Use Cases (сценарии использования), бизнес-транзакции, оркестрация сервисов</div>
+      </div>
+      <div class="arch-layer i" style="animation: slideIn 0.6s ease;">
+        <div style="font-weight: bold; width: 150px;">INFRASTRUCTURE</div>
+        <div style="color: var(--text-gray);">БД адаптеры (Spring Data JPA), MinIO клиент, Security (JWT), Kafka Producer/Consumer</div>
+      </div>
+      <div class="arch-layer d" style="animation: slideIn 0.7s ease;">
+        <div style="font-weight: bold; width: 150px;">DOMAIN</div>
+        <div style="color: var(--text-gray);">Чистые сущности, модели (Document, Rule, Violation) и интерфейсы репозиториев без фреймворков</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Возможности</div>
+    <div class="feat-grid">
+      <div class="feat-card"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path></svg><div>Движок правил ГОСТ</div></div>
+      <div class="feat-card"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2"><path d="M12 2v20"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg><div>Анализ антиплагиата</div></div>
+      <div class="feat-card"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#007AFF" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg><div>AI-рекомендации</div></div>
+      <div class="feat-card"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8B5CF6" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg><div>PDF Отчёты</div></div>
+      <div class="feat-card"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg><div>JWT + RBAC</div></div>
+      <div class="feat-card"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg><div>Журнал аудита</div></div>
+      <div class="feat-card"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-gray)" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg><div>WebSocket прогресс</div></div>
+      <div class="feat-card"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--text-gray)" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg><div>Сравнение версий</div></div>
+    </div>
+  </div>
+
+  <div class="author-sec">
+    <div class="author-ava">ИА</div>
+    <div style="font-size: 24px; font-weight: bold; margin-bottom: 8px;">Идаят Али</div>
+    <div style="color: #98989A; margin-bottom: 4px;">Курс: Продвинутая Java, кафедра ИУ6</div>
+    <div style="color: #98989A;">2024–2025</div>
+  </div>
+
 </body>
 </html>

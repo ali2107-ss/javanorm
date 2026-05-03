@@ -5,6 +5,9 @@ server:
 spring:
   application:
     name: normacontrol
+  web:
+    resources:
+      static-locations: classpath:/static/
   datasource:
     url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/normacontrol}
     username: ${SPRING_DATASOURCE_USERNAME:norma}

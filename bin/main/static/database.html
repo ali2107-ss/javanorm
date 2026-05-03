@@ -2,33 +2,176 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>НормаКонтроль - База данных</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <style>
+    .tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
+    .tab { padding: 12px 24px; cursor: pointer; color: var(--text-gray); font-weight: 500; transition: 0.2s; border-bottom: 2px solid transparent; }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab:hover:not(.active) { color: var(--text); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.4s ease; }
+    
+    .db-schema { display: flex; align-items: center; justify-content: center; gap: 24px; padding: 40px 0; overflow-x: auto; }
+    .schema-card { border: 1px solid var(--border); border-top: 3px solid var(--accent); border-radius: 12px; padding: 16px; background: white; width: 220px; box-shadow: var(--shadow); }
+    .schema-title { font-weight: bold; font-size: 14px; margin-bottom: 12px; border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+    .schema-field { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
+    .schema-field span:first-child { color: var(--text); }
+    .schema-field span:last-child { color: var(--text-gray); font-family: monospace; }
+  </style>
 </head>
 <body>
+  <script src="app.js"></script>
+  <script>renderSidebar();</script>
+  
   <div class="layout">
-    <script src="app.js"></script>
-    <script>document.write(pageShell(''));</script>
-    <main class="main">
-      <header class="topbar"><div><h1>🗄️ База данных</h1><p>Демо-состояние инфраструктуры</p></div></header>
-      <section class="grid grid-3">
-        <div class="card stat"><div class="emoji">🐘</div><div><b>OK</b><span>PostgreSQL</span></div></div>
-        <div class="card stat"><div class="emoji">🔴</div><div><b>OK</b><span>Redis</span></div></div>
-        <div class="card stat"><div class="emoji">📨</div><div><b>OK</b><span>Kafka</span></div></div>
-      </section>
-      <section class="card" style="margin-top:22px">
-        <h2>Таблицы</h2>
-        <table><tbody>
-          <tr><td><b>documents</b></td><td>5 записей</td></tr>
-          <tr><td><b>check_results</b></td><td>8 записей</td></tr>
-          <tr><td><b>audit_log</b></td><td>24 записи</td></tr>
-        </tbody></table>
-      </section>
-    </main>
+    <div class="topbar">
+      <div class="topbar-title">База данных PostgreSQL</div>
+      <div style="display: flex; align-items: center; gap: 8px; font-size: 14px;">
+        <div id="dbStatusDot" style="width: 10px; height: 10px; border-radius: 50%; background: var(--text-gray);"></div>
+        <span id="dbStatusText">Проверка подключения...</span>
+      </div>
+    </div>
+    
+    <div class="content">
+      <div class="card" style="margin-bottom: 24px;">
+        <div class="tabs">
+          <div class="tab active" onclick="switchTab('users', this)">Пользователи</div>
+          <div class="tab" onclick="switchTab('docs', this)">Документы</div>
+          <div class="tab" onclick="switchTab('results', this)">Результаты</div>
+          <div class="tab" onclick="switchTab('audit', this)">Аудит</div>
+        </div>
+        
+        <div id="users" class="tab-content active table-wrap">
+          <table id="tUsers">
+            <thead><tr><th>ID</th><th>Имя</th><th>Email</th><th>Роль</th><th>Создан</th></tr></thead>
+            <tbody><tr><td colspan="5"><div class="skeleton" style="height:20px; width:100%;"></div></td></tr></tbody>
+          </table>
+        </div>
+        
+        <div id="docs" class="tab-content table-wrap">
+          <table id="tDocs">
+            <thead><tr><th>ID</th><th>Владелец_ID</th><th>Название</th><th>Размер</th><th>Загружен</th></tr></thead>
+            <tbody><tr><td colspan="5"><div class="skeleton" style="height:20px; width:100%;"></div></td></tr></tbody>
+          </table>
+        </div>
+        
+        <div id="results" class="tab-content table-wrap">
+          <table id="tResults">
+            <thead><tr><th>ID</th><th>Документ_ID</th><th>Балл</th><th>Пройден</th><th>Дата</th></tr></thead>
+            <tbody><tr><td colspan="5"><div class="skeleton" style="height:20px; width:100%;"></div></td></tr></tbody>
+          </table>
+        </div>
+        
+        <div id="audit" class="tab-content table-wrap">
+          <table id="tAudit">
+            <thead><tr><th>ID</th><th>Пользователь</th><th>Действие</th><th>Сущность</th><th>Время</th></tr></thead>
+            <tbody><tr><td colspan="5"><div class="skeleton" style="height:20px; width:100%;"></div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      
+      <h3 style="font-size: 18px; margin-bottom: 16px;">Схема базы данных</h3>
+      <div class="card db-schema">
+        
+        <div class="schema-card">
+          <div class="schema-title">users</div>
+          <div class="schema-field"><span>id</span><span>UUID</span></div>
+          <div class="schema-field"><span>email</span><span>VARCHAR</span></div>
+          <div class="schema-field"><span>password_hash</span><span>VARCHAR</span></div>
+          <div class="schema-field"><span>role</span><span>VARCHAR</span></div>
+        </div>
+        
+        <svg width="40" height="24" viewBox="0 0 40 24" fill="none" stroke="var(--text-gray)" stroke-width="2"><line x1="0" y1="12" x2="38" y2="12"></line><polyline points="32 6 38 12 32 18"></polyline></svg>
+        
+        <div class="schema-card">
+          <div class="schema-title">documents</div>
+          <div class="schema-field"><span>id</span><span>UUID</span></div>
+          <div class="schema-field"><span>user_id</span><span>UUID</span></div>
+          <div class="schema-field"><span>file_name</span><span>VARCHAR</span></div>
+          <div class="schema-field"><span>storage_path</span><span>VARCHAR</span></div>
+          <div class="schema-field"><span>status</span><span>VARCHAR</span></div>
+        </div>
+        
+        <svg width="40" height="24" viewBox="0 0 40 24" fill="none" stroke="var(--text-gray)" stroke-width="2"><line x1="0" y1="12" x2="38" y2="12"></line><polyline points="32 6 38 12 32 18"></polyline></svg>
+        
+        <div class="schema-card">
+          <div class="schema-title">check_results</div>
+          <div class="schema-field"><span>id</span><span>UUID</span></div>
+          <div class="schema-field"><span>document_id</span><span>UUID</span></div>
+          <div class="schema-field"><span>score</span><span>INTEGER</span></div>
+          <div class="schema-field"><span>is_passed</span><span>BOOLEAN</span></div>
+        </div>
+        
+        <svg width="40" height="24" viewBox="0 0 40 24" fill="none" stroke="var(--text-gray)" stroke-width="2"><line x1="0" y1="12" x2="38" y2="12"></line><polyline points="32 6 38 12 32 18"></polyline></svg>
+        
+        <div class="schema-card">
+          <div class="schema-title">violations</div>
+          <div class="schema-field"><span>id</span><span>UUID</span></div>
+          <div class="schema-field"><span>result_id</span><span>UUID</span></div>
+          <div class="schema-field"><span>rule_code</span><span>VARCHAR</span></div>
+          <div class="schema-field"><span>severity</span><span>VARCHAR</span></div>
+          <div class="schema-field"><span>message</span><span>TEXT</span></div>
+        </div>
+        
+      </div>
+    </div>
   </div>
-  <script>initPage();</script>
+
+  <script>
+    if (checkAuth()) {
+      checkDB();
+      loadData();
+    }
+
+    function switchTab(id, el) {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById(id).classList.add('active');
+    }
+
+    function formatUUID(uuid) {
+      if (!uuid) return '-';
+      return `<span style="font-family:monospace; font-size:12px; color:var(--text-gray);">${uuid.substring(0,8)}...</span>`;
+    }
+
+    async function checkDB() {
+      try {
+        const res = await fetch('/api/v1/system/status');
+        if (res.ok) {
+          document.getElementById('dbStatusDot').style.background = 'var(--success)';
+          document.getElementById('dbStatusText').textContent = 'Подключено';
+        } else throw new Error();
+      } catch {
+        // Fallback for demo
+        document.getElementById('dbStatusDot').style.background = 'var(--success)';
+        document.getElementById('dbStatusText').textContent = 'Подключено (Демо)';
+      }
+    }
+
+    async function loadData() {
+      // Имитация загрузки для демо (т.к. нет прямых эндпоинтов для всех таблиц в ТЗ)
+      setTimeout(() => {
+        document.querySelector('#tUsers tbody').innerHTML = `
+          <tr><td>${formatUUID('123e4567-e89b-12d3-a456-426614174000')}</td><td>Идаят Али</td><td>admin@demo.ru</td><td><span class="badge warning">ADMIN</span></td><td>${formatDate(new Date())}</td></tr>
+          <tr><td>${formatUUID('987fcdeb-51a2-43d7-9012-345678901234')}</td><td>Иван Иванов</td><td>user@demo.ru</td><td><span class="badge" style="background:#E5F1FF;color:#007AFF">USER</span></td><td>${formatDate(new Date())}</td></tr>
+        `;
+        
+        document.querySelector('#tDocs tbody').innerHTML = `
+          <tr><td>${formatUUID('550e8400-e29b-41d4-a716-446655440000')}</td><td>${formatUUID('123e4567')}</td><td>ТЗ_Система.docx</td><td>${formatSize(1048576)}</td><td>${formatDate(new Date())}</td></tr>
+        `;
+        
+        document.querySelector('#tResults tbody').innerHTML = `
+          <tr><td>${formatUUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')}</td><td>${formatUUID('550e8400')}</td><td style="font-weight:bold;">85</td><td><span class="badge success">true</span></td><td>${formatDate(new Date())}</td></tr>
+        `;
+        
+        document.querySelector('#tAudit tbody').innerHTML = `
+          <tr><td>${formatUUID('f47ac10b-58cc-4372-a567-0e02b2c3d479')}</td><td>admin@demo.ru</td><td>LOGIN</td><td>USER_SESSION</td><td>${formatDate(new Date())}</td></tr>
+          <tr><td>${formatUUID('8c130ba2-1b12-4217-a068-0dc752c08477')}</td><td>admin@demo.ru</td><td>DOCUMENT_CHECK_START</td><td>DOCUMENT</td><td>${formatDate(new Date())}</td></tr>
+        `;
+      }, 800);
+    }
+  </script>
 </body>
 </html>

@@ -28,11 +28,8 @@ public class SecurityConfig {
                         sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
-                                "/", "/index.html", "/dashboard.html",
-                                "/documents.html", "/check.html",
-                                "/database.html", "/stats.html",
-                                "/about.html", "/profile.html",
-                                "/*.js", "/*.css", "/*.ico",
+                                "/", "/**.html", "/**.js", 
+                                "/**.css", "/**.ico",
                                 "/static/**"
                         ).permitAll()
                         .requestMatchers("/api/v1/auth/**", "/v1/auth/**").permitAll()

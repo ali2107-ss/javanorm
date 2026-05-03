@@ -2,33 +2,88 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>НормаКонтроль - Профиль</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <script src="app.js"></script>
+  <script>renderSidebar();</script>
+  
   <div class="layout">
-    <script src="app.js"></script>
-    <script>document.write(pageShell('/profile.html'));</script>
-    <main class="main">
-      <header class="topbar"><div><h1>👤 Профиль</h1><p>Данные текущего пользователя из JWT</p></div></header>
-      <section class="card" style="max-width:720px">
-        <div class="grid">
-          <div><b>Email</b><div id="profileEmail" style="font-size:22px;margin-top:6px">Пользователь</div></div>
-          <div><b>Имя</b><div id="profileName" style="font-size:22px;margin-top:6px">Пользователь</div></div>
-          <div><b>Роль</b><div id="profileRole" style="font-size:22px;margin-top:6px">USER</div></div>
+    <div class="topbar">
+      <div class="topbar-title">Профиль пользователя</div>
+    </div>
+    
+    <div class="content">
+      <div style="display: flex; gap: 24px;">
+        <div class="card" style="width: 300px; text-align: center; animation: fadeIn 0.4s ease;">
+          <div id="profInitials" style="width: 100px; height: 100px; background: var(--accent); color: white; border-radius: 50%; font-size: 36px; font-weight: bold; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">П</div>
+          <h2 id="profName" style="margin-bottom: 8px;">Пользователь</h2>
+          <div id="profEmail" style="color: var(--text-gray); margin-bottom: 16px;">email@example.com</div>
+          <div id="profRole" class="badge warning" style="margin-bottom: 24px;">USER</div>
+          
+          <button class="btn btn-outline" style="width: 100%;" onclick="showToast('Смена пароля недоступна в демо-режиме')">Изменить пароль</button>
         </div>
-      </section>
-    </main>
+        
+        <div class="card" style="flex: 1; animation: slideIn 0.6s ease;">
+          <h3 style="font-size: 18px; margin-bottom: 24px;">Личная статистика</h3>
+          
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px;">
+            <div style="background: var(--bg-secondary); padding: 16px; border-radius: 12px; text-align: center;">
+              <div style="font-size: 28px; font-weight: bold; color: var(--accent);">42</div>
+              <div style="color: var(--text-gray); font-size: 13px;">Проверено</div>
+            </div>
+            <div style="background: var(--bg-secondary); padding: 16px; border-radius: 12px; text-align: center;">
+              <div style="font-size: 28px; font-weight: bold; color: var(--success);">86</div>
+              <div style="color: var(--text-gray); font-size: 13px;">Средний балл</div>
+            </div>
+            <div style="background: var(--bg-secondary); padding: 16px; border-radius: 12px; text-align: center;">
+              <div style="font-size: 28px; font-weight: bold; color: #007AFF;">15</div>
+              <div style="color: var(--text-gray); font-size: 13px;">Документов в базе</div>
+            </div>
+          </div>
+          
+          <h3 style="font-size: 16px; margin-bottom: 16px;">Настройки уведомлений</h3>
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <label style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 16px; cursor: pointer;">
+              <div>
+                <div style="font-weight: 500;">Email-отчёты</div>
+                <div style="font-size: 13px; color: var(--text-gray);">Получать PDF-отчёт на почту после проверки</div>
+              </div>
+              <input type="checkbox" checked style="width: 18px; height: 18px; accent-color: var(--accent);">
+            </label>
+            <label style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 16px; cursor: pointer;">
+              <div>
+                <div style="font-weight: 500;">Уведомления о нововведениях ГОСТ</div>
+                <div style="font-size: 13px; color: var(--text-gray);">Рассылка об изменениях в алгоритмах</div>
+              </div>
+              <input type="checkbox" style="width: 18px; height: 18px; accent-color: var(--accent);">
+            </label>
+          </div>
+          
+          <button class="btn btn-primary" style="margin-top: 16px;" onclick="showToast('Настройки сохранены', 'success')">Сохранить изменения</button>
+        </div>
+      </div>
+    </div>
   </div>
+
   <script>
-    initPage();
-    const payload = parseJwt(getToken());
-    document.getElementById('profileEmail').textContent = payload.email || payload.sub || 'demo@normacontrol.ru';
-    document.getElementById('profileName').textContent = payload.name || payload.username || 'Пользователь';
-    document.getElementById('profileRole').textContent = payload.roles || payload.role || 'USER';
+    if (checkAuth()) {
+      const u = getUserInfo();
+      document.getElementById('profInitials').textContent = u.initials;
+      document.getElementById('profName').textContent = u.name;
+      document.getElementById('profEmail').textContent = u.email || 'Не указан';
+      
+      const r = document.getElementById('profRole');
+      r.textContent = u.role;
+      if (u.role.includes('ADMIN')) {
+        r.className = 'badge danger';
+      } else {
+        r.className = 'badge' ;
+        r.style.background = '#E5F1FF';
+        r.style.color = '#007AFF';
+      }
+    }
   </script>
 </body>
 </html>
