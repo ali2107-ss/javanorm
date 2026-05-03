@@ -15,6 +15,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -61,7 +64,8 @@ public class CheckResultJpaEntity {
     @Column(name = "uniqueness_percent")
     private Integer uniquenessPercent;
 
-    @Column(name = "plagiarism_result", columnDefinition = "jsonb")
+    @Column(name = "plagiarism_result")
+    @JdbcTypeCode(SqlTypes.JSON)
     private String plagiarismResult;
 
     @OneToMany(mappedBy = "checkResult", cascade = CascadeType.ALL, orphanRemoval = true)

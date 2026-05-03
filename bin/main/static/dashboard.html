@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>НормаКонтроль - Дашборд</title>
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <script src="app.js"></script>
@@ -57,22 +56,44 @@
 
     async function initDashboard() {
       // Load Stats
-      let stats = await apiCall('/api/v1/admin/stats');
-      if (!stats) stats = { totalDocuments: 5, passedDocuments: 3, failedDocuments: 2, averageScore: 76 };
+      const isAdmin = getUserInfo().role.includes('ADMIN');
+      let stats = null;
+      if (isAdmin) {
+        stats = await apiCall('/api/v1/admin/stats');
+      }
       
-      const total = stats.totalDocuments ?? 5;
-      const passed = stats.passedDocuments ?? 3;
-      const failed = stats.failedDocuments ?? 2;
-      const avg = Math.round(stats.averageScore ?? 76);
+      // Fallback or generic stats if not admin or error
+      if (!stats) {
+        const docs = await apiCall('/api/v1/documents');
+        const list = Array.isArray(docs) ? docs : (docs?.content || []);
+        const checked = list.filter(d => d.status === 'CHECKED');
+        const results = await Promise.all(checked.map(d => apiCall(`/api/v1/documents/${d.id}/result`)));
+        const realResults = results.filter(Boolean);
+        const avg = realResults.length ? realResults.reduce((acc, r) => acc + (r.complianceScore || 0), 0) / realResults.length : 0;
+        stats = {
+          totalDocuments: list.length,
+          totalChecks: realResults.length,
+          checksToday: realResults.filter(r => r.checkedAt && new Date(r.checkedAt).toDateString() === new Date().toDateString()).length,
+          passedDocuments: realResults.filter(r => r.passed || r.complianceScore >= 80).length,
+          failedDocuments: realResults.filter(r => !r.passed && r.complianceScore < 80).length,
+          averageScore: avg
+        };
+      }
+      
+      const total = stats.totalDocuments ?? 0;
+      const totalChecks = stats.totalChecks ?? 0;
+      const today = stats.checksToday ?? 0;
+      const avg = Math.round(stats.averageScore ?? 0);
 
       const items = [
         { label: 'Всего документов', value: total, icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline>' },
-        { label: 'Успешно прошли', value: passed, icon: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>' },
-        { label: 'Требуют исправлений', value: failed, icon: '<circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line>' },
+        { label: 'Всего проверок', value: totalChecks, icon: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>' },
+        { label: 'Проверок сегодня', value: today, icon: '<circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line>' },
         { label: 'Средний балл', value: avg, icon: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>' }
       ];
 
       const grid = document.getElementById('statsGrid');
+      grid.innerHTML = '';
       items.forEach((item, i) => {
         const div = document.createElement('div');
         div.className = 'card';
@@ -95,75 +116,53 @@
         }, 100 + i * 100);
       });
 
-      // Chart
-      const ctx = document.getElementById('scoreChart').getContext('2d');
-      new Chart(ctx, {
-        type: 'line',
-        data: {
-          labels: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
-          datasets: [{
-            label: 'Баллы проверок',
-            data: [65, 78, 82, 71, 90, 87, 94],
-            borderColor: '#FF6B00',
-            backgroundColor: 'rgba(255,107,0,0.05)',
-            borderWidth: 2,
-            fill: true,
-            tension: 0.4,
-            pointBackgroundColor: '#FFFFFF',
-            pointBorderColor: '#FF6B00',
-            pointRadius: 4
-          }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } },
-          scales: {
-            y: {
-              beginAtZero: true, max: 100,
-              grid: { color: 'rgba(0,0,0,0.05)' }
-            },
-            x: { grid: { display: false } }
-          }
-        }
+      // Chart - Trend
+      const trendData = await apiCall('/api/v1/stats/score-trend?days=7');
+      const chartLabels = trendData && trendData.length ? trendData.map(d => formatDate(d.date).split(',')[0]) : ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+      const chartValues = trendData && trendData.length ? trendData.map(d => d.averageScore) : [0, 0, 0, 0, 0, 0, 0];
+
+      drawLineChart(document.getElementById('scoreChart'), chartLabels, chartValues, {
+        color: '#FF6B00',
+        fill: 'rgba(255,107,0,0.16)'
       });
 
       // Table
-      const demoDocs = [
-        { name: 'ТЗ_Система.docx', score: 85, passed: true },
-        { name: 'Пояснительная.docx', score: 62, passed: false },
-        { name: 'Руководство.pdf', score: 92, passed: true },
-        { name: 'Архитектура.docx', score: null, passed: null }
-      ];
       let docsData = await apiCall('/api/v1/documents?size=5');
-      let docs = Array.isArray(docsData) ? docsData : (docsData?.content || demoDocs);
-      if (docs.length === 0) docs = demoDocs;
+      let docs = Array.isArray(docsData) ? docsData : (docsData?.content || []);
+      const docResults = await Promise.all(docs.slice(0, 5).map(doc => 
+        doc.status === 'CHECKED' ? apiCall(`/api/v1/documents/${doc.id}/result`) : Promise.resolve(null)
+      ));
 
       const tbody = document.querySelector('#docsTable tbody');
-      tbody.innerHTML = docs.slice(0, 5).map(doc => {
-        const score = doc.score || doc.complianceScore;
-        const name = doc.originalFilename || doc.fileName || doc.name || 'Документ';
-        let badge = '<span class="badge" style="background:#FFF7ED;color:#EA580C">CHECKING</span>';
-        let bVal = '-';
-        if (score !== undefined && score !== null) {
-          bVal = score;
-          const ok = doc.passed ?? (score >= 80);
-          badge = ok 
-            ? '<span class="badge success">ПРОШЁЛ</span>'
-            : '<span class="badge danger">НЕ ПРОШЁЛ</span>';
-        } else if (doc.passed !== undefined && doc.passed !== null) {
-          badge = doc.passed 
-            ? '<span class="badge success">ПРОШЁЛ</span>'
-            : '<span class="badge danger">НЕ ПРОШЁЛ</span>';
-        }
-        return `
-          <tr>
-            <td style="font-weight:500;">${name}</td>
-            <td style="font-weight:600;">${bVal}</td>
-            <td>${badge}</td>
-          </tr>
-        `;
-      }).join('');
+      if (docs.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:20px;color:var(--text-gray)">Документов пока нет</td></tr>';
+      } else {
+        tbody.innerHTML = docs.slice(0, 5).map((doc, index) => {
+          const result = docResults[index];
+          const score = result?.complianceScore;
+          const name = doc.originalFilename || doc.fileName || doc.name || 'Документ';
+          let badge = '<span class="badge" style="background:var(--bg-secondary);color:var(--text-gray)">UPLOADED</span>';
+          let bVal = '—';
+          
+          if (doc.status === 'CHECKED' && result) {
+            bVal = score || 0;
+            const ok = result.passed || (bVal >= 80);
+            badge = ok 
+              ? '<span class="badge success">ПРОШЁЛ</span>'
+              : '<span class="badge danger">НЕ ПРОШЁЛ</span>';
+          } else if (doc.status === 'CHECKING' || doc.status === 'QUEUED' || doc.status === 'PROCESSING') {
+            badge = '<span class="badge" style="background:#FFF0E6;color:#FF6B00">CHECKING</span>';
+          }
+          
+          return `
+            <tr>
+              <td style="font-weight:500;">${name}</td>
+              <td style="font-weight:600;">${bVal}</td>
+              <td>${badge}</td>
+            </tr>
+          `;
+        }).join('');
+      }
     }
   </script>
 </body>

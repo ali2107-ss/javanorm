@@ -40,11 +40,12 @@ public class ViolationStatisticsUseCase {
      */
     private static final List<Map.Entry<String, String>> SECTIONS = List.of(
             Map.entry("STRUCT", "Структура документа"),
-            Map.entry("FMT",    "Форматирование"),
-            Map.entry("TBL",    "Таблицы"),
+            Map.entry("FORMAT", "Форматирование"),
+            Map.entry("TABLE",  "Таблицы"),
             Map.entry("FIG",    "Рисунки"),
-            Map.entry("LANG",   "Язык и стиль"),
-            Map.entry("REF",    "Ссылки и литература")
+            Map.entry("LANGUAGE", "Язык и стиль"),
+            Map.entry("REF",    "Ссылки и литература"),
+            Map.entry("PLAGIARISM", "Антиплагиат")
     );
 
     private final ViolationJpaRepository    violationJpaRepository;
@@ -173,12 +174,17 @@ public class ViolationStatisticsUseCase {
      */
     private String extractPrefix(String ruleCode) {
         if (ruleCode == null) return "OTHER";
-        // Handle both formats: "FMT-001" and "GOST19.201.STRUCT-001"
         String code = ruleCode;
-        // If it contains dots (e.g. GOST19.201.STRUCT-001), take the last segment before dash
+        if (code.contains("STRUCT")) return "STRUCT";
+        if (code.contains("FORMAT") || code.startsWith("FMT")) return "FORMAT";
+        if (code.contains("TABLE") || code.startsWith("TBL")) return "TABLE";
+        if (code.contains("LANGUAGE") || code.startsWith("LANG")) return "LANGUAGE";
+        if (code.contains("PLAGIARISM")) return "PLAGIARISM";
+        if (code.contains("FIG")) return "FIG";
+        if (code.contains("REF")) return "REF";
         if (code.contains(".")) {
             String[] dotParts = code.split("\\.");
-            code = dotParts[dotParts.length - 1]; // "STRUCT-001"
+            code = dotParts[dotParts.length - 1];
         }
         int dash = code.indexOf('-');
         return dash > 0 ? code.substring(0, dash) : code;

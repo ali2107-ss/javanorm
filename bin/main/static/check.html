@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -124,9 +124,29 @@
             
             <div style="display: flex; gap: 12px; margin-bottom: 24px;">
               <button class="btn btn-primary" onclick="downloadReport()">Скачать PDF-отчёт</button>
-              <button class="btn btn-outline" onclick="showToast('Функция в разработке')">Авто-исправить</button>
-              <button class="btn btn-outline" onclick="showToast('Функция в разработке')">Сравнить версии</button>
+              <button class="btn btn-outline" id="autoFixBtn" onclick="autoFix()">Авто-исправить</button>
+              <button class="btn btn-outline" id="compareBtn" onclick="compareVersions()">Сравнить версии</button>
             </div>
+
+            <div id="comparePanel" class="card" style="display:none; margin-bottom:24px; padding:18px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:16px; margin-bottom:14px;">
+                <div>
+                  <div style="font-weight:800; margin-bottom:4px;">Сравнение версий</div>
+                  <div style="color:var(--text-gray); font-size:13px;">Выберите второй проверенный DOCX-файл из списка.</div>
+                </div>
+                <button class="btn btn-outline" style="padding:6px 10px;" onclick="closeComparePanel()">Закрыть</button>
+              </div>
+              <div style="display:flex; gap:12px; align-items:flex-end;">
+                <div style="flex:1;">
+                  <label class="form-label">Сравнить с</label>
+                  <select class="form-control" id="compareDocSelect"></select>
+                </div>
+                <button class="btn btn-primary" id="runCompareBtn" onclick="runCompare()">Сравнить</button>
+              </div>
+              <div id="compareResult" style="display:none; margin-top:14px;"></div>
+            </div>
+
+            <div id="plagiarismPanel" class="card" style="display:none; margin-bottom: 24px; padding: 18px;"></div>
             
             <div id="violationsList"></div>
           </div>
@@ -137,6 +157,7 @@
 
   <script>
     let currentDocId = null;
+    let docsCache = [];
 
     if (checkAuth()) {
       loadDocsForSelect();
@@ -152,6 +173,7 @@
       const sel = document.getElementById('docSelect');
       let data = await apiCall('/api/v1/documents');
       let docs = Array.isArray(data) ? data : (data?.content || []);
+      docsCache = docs;
       
       if (docs.length === 0) {
         sel.innerHTML = '<option value="">Сначала загрузите документ</option>';
@@ -191,6 +213,93 @@
       document.getElementById('stepsContainer').innerHTML = html;
     }
 
+    function sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    function updateProgress(percent, step) {
+      document.getElementById('checkBar').style.width = percent + '%';
+      document.getElementById('checkPercent').textContent = percent + '%';
+      renderSteps(step);
+    }
+
+    function failCheck(message) {
+      document.getElementById('progressState').style.display = 'none';
+      document.getElementById('initialState').style.display = 'block';
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('startBtn').innerHTML = 'Запустить проверку';
+      showToast(message, 'error');
+    }
+
+    function normalizeResult(res) {
+      const violations = (res.violations || []).map(v => ({
+        severity: v.severity || 'INFO',
+        ruleCode: v.ruleCode || 'UNKNOWN',
+        message: v.description || v.message || 'Нарушение без описания',
+        recommendation: v.aiSuggestion || v.suggestion || v.recommendation || '',
+        pageInfo: v.pageNumber && v.pageNumber > 0 ? `стр. ${v.pageNumber}` : '',
+        lineInfo: v.lineNumber && v.lineNumber > 0 ? `абз. ${v.lineNumber}` : ''
+      }));
+      return {
+        score: res.complianceScore ?? res.score ?? 0,
+        passed: !!res.passed,
+        violations,
+        uniquenessPercent: res.uniquenessPercent,
+        plagiarismResult: res.plagiarismResult
+      };
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function currentDocument() {
+      return docsCache.find(d => d.id === currentDocId) || {};
+    }
+
+    function currentFileBase() {
+      const doc = currentDocument();
+      const sel = document.getElementById('docSelect');
+      const selectedText = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : '';
+      return stripExtension(doc.originalFilename || doc.fileName || doc.name || selectedText || 'document');
+    }
+
+    function isDocx(doc) {
+      const name = (doc.originalFilename || doc.fileName || doc.name || '').toLowerCase();
+      const type = String(doc.contentType || doc.type || '').toUpperCase();
+      return type === 'DOCX' || name.endsWith('.docx');
+    }
+
+    async function pollCheckResult() {
+      const startedAt = Date.now();
+      const maxWaitMs = 240000;
+      while (Date.now() - startedAt < maxWaitMs) {
+        const elapsed = Date.now() - startedAt;
+        const percent = Math.min(95, 12 + Math.floor(elapsed / 2500) * 8);
+        const step = Math.min(7, Math.max(1, Math.floor(percent / 14)));
+        updateProgress(percent, step);
+
+        const result = await apiCall(`/api/v1/documents/${currentDocId}/result`);
+        if (result && result.complianceScore !== undefined) {
+          updateProgress(100, 8);
+          return normalizeResult(result);
+        }
+
+        const doc = await apiCall(`/api/v1/documents/${currentDocId}`);
+        if (doc?.status === 'FAILED') {
+          throw new Error('Проверка завершилась ошибкой. Проверьте файл и логи сервера.');
+        }
+
+        await sleep(2000);
+      }
+      throw new Error('Проверка не завершилась за 4 минуты. Сервер продолжит обработку, попробуйте открыть результат позже.');
+    }
+
     async function startCheck() {
       const sel = document.getElementById('docSelect');
       if (!sel.value) { showToast('Выберите документ', 'error'); return; }
@@ -205,66 +314,26 @@
       document.getElementById('progressState').style.display = 'block';
       document.getElementById('checkDocName').textContent = sel.options[sel.selectedIndex].text;
       
-      renderSteps(0);
-      
-      // Имитация прогресса
-      const schedule = [
-        { t: 1000, p: 12, s: 1 },
-        { t: 3000, p: 28, s: 2 },
-        { t: 5000, p: 45, s: 3 },
-        { t: 7000, p: 60, s: 4 },
-        { t: 9000, p: 73, s: 5 },
-        { t: 11000, p: 86, s: 6 },
-        { t: 13000, p: 95, s: 7 },
-        { t: 15000, p: 100, s: 8 }
-      ];
-      
-      // Запускаем API запрос в фоне
-      apiCall(`/api/v1/documents/${currentDocId}/check`, { method: 'POST' }).catch(() => {});
-      
-      let scheduleIdx = 0;
-      const bar = document.getElementById('checkBar');
-      const pct = document.getElementById('checkPercent');
-      
-      const startTime = Date.now();
-      const timer = setInterval(() => {
-        const elapsed = Date.now() - startTime;
-        if (scheduleIdx < schedule.length && elapsed >= schedule[scheduleIdx].t) {
-          bar.style.width = schedule[scheduleIdx].p + '%';
-          pct.textContent = schedule[scheduleIdx].p + '%';
-          renderSteps(schedule[scheduleIdx].s);
-          scheduleIdx++;
+      updateProgress(5, 0);
+
+      try {
+        const started = await apiCall(`/api/v1/documents/${currentDocId}/check`, { method: 'POST' });
+        if (!started || started.status === 'FAILED') {
+          throw new Error(started?.message || 'Сервер не запустил проверку');
         }
-        if (scheduleIdx >= schedule.length) {
-          clearInterval(timer);
-          showResults();
-        }
-      }, 100);
+        const result = await pollCheckResult();
+        showResults(result);
+      } catch (e) {
+        failCheck(e.message || 'Ошибка проверки документа');
+      }
     }
 
-    async function showResults() {
+    async function showResults(res) {
       document.getElementById('progressState').style.display = 'none';
       document.getElementById('resultState').style.display = 'block';
       
       document.getElementById('startBtn').disabled = false;
       document.getElementById('startBtn').innerHTML = 'Запустить проверку снова';
-      
-      let res = await apiCall(`/api/v1/documents/${currentDocId}/result`);
-      if (!res || !res.score) {
-        // Demo fallback
-        res = {
-          score: 74,
-          passed: false,
-          violations: [
-            { severity: 'CRITICAL', ruleCode: 'GOST.STRUCT.INTRO_MISSING', message: 'Отсутствует обязательный раздел "Введение"', recommendation: 'Добавьте раздел "Введение" согласно ГОСТ 19.201-78, п. 1.2' },
-            { severity: 'CRITICAL', ruleCode: 'GOST.FORMAT.MARGINS', message: 'Поля не соответствуют ГОСТ (левое < 30мм)', recommendation: 'Установите левое поле документа равным 30 мм', pageInfo: 'стр. 2' },
-            { severity: 'WARNING', ruleCode: 'GOST.FONT.SIZE', message: 'Размер шрифта менее 12pt в основном тексте', recommendation: 'Измените размер шрифта на 12pt или 14pt (рекомендуется Times New Roman)', pageInfo: 'стр. 5' },
-            { severity: 'WARNING', ruleCode: 'GOST.STRUCT.NUM', message: 'Нарушена нумерация разделов (после 1.1 идет 1.3)', recommendation: 'Исправьте нумерацию', pageInfo: 'стр. 6' },
-            { severity: 'WARNING', ruleCode: 'ANTI.PLAGIARISM', message: 'Оригинальность текста 68% (требуется 70%)', recommendation: 'Перефразируйте заимствованные фрагменты' },
-            { severity: 'INFO', ruleCode: 'GOST.STYLE.PASSIVE', message: 'Слишком частое использование страдательного залога', recommendation: 'Используйте действительный залог для улучшения читаемости', pageInfo: 'стр. 8' }
-          ]
-        };
-      }
       
       const sc = res.score ?? 0;
       animateCount(document.getElementById('scoreValue'), sc, 1000);
@@ -298,6 +367,37 @@
       
       const list = document.getElementById('violationsList');
       list.innerHTML = '';
+
+      const plagPanel = document.getElementById('plagiarismPanel');
+      const uniqueness = res.uniquenessPercent ?? res.plagiarismResult?.uniquenessPercent;
+      if (uniqueness !== undefined && uniqueness !== null) {
+        const suspicious = res.plagiarismResult?.suspiciousFragments || [];
+        const verdict = res.plagiarismResult?.verdict || (uniqueness >= 85 ? 'УНИКАЛЬНЫЙ' : uniqueness >= 70 ? 'ЧАСТИЧНО УНИКАЛЬНЫЙ' : 'ПЛАГИАТ');
+        const color = uniqueness >= 85 ? 'var(--success)' : uniqueness >= 70 ? 'var(--warning)' : 'var(--danger)';
+        plagPanel.style.display = 'block';
+        plagPanel.innerHTML = `
+          <div style="display:flex; justify-content:space-between; gap:16px; align-items:center;">
+            <div>
+              <div style="font-size:13px; color:var(--text-gray); margin-bottom:4px;">Антиплагиат</div>
+              <div style="font-size:20px; font-weight:800; color:${color};">${uniqueness}% · ${escapeHtml(verdict)}</div>
+            </div>
+            <div style="color:var(--text-gray); font-size:14px;">Совпадений: ${suspicious.length}</div>
+          </div>
+          ${suspicious.length ? `
+            <div style="margin-top:12px; display:flex; flex-direction:column; gap:8px;">
+              ${suspicious.slice(0, 3).map(f => `
+                <div style="background:var(--bg-secondary); border-radius:8px; padding:10px; font-size:13px;">
+                  <strong>${escapeHtml(f.similarityPercent)}%</strong> · ${escapeHtml(f.sourceDocumentName || 'Источник в базе')}<br>
+                  <span style="color:var(--text-gray);">${escapeHtml((f.originalText || '').slice(0, 180))}</span>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+        `;
+      } else {
+        plagPanel.style.display = 'none';
+        plagPanel.innerHTML = '';
+      }
       
       res.violations?.forEach((v, i) => {
         let bCol = '#007AFF';
@@ -312,24 +412,131 @@
                 ${badge}
                 <code style="color:var(--text-gray); font-size:13px; font-family:monospace;">${v.ruleCode || 'UNKNOWN'}</code>
               </div>
-              ${v.pageInfo ? `<div style="color:var(--text-gray); font-size:13px;">${v.pageInfo}</div>` : ''}
+              ${(v.pageInfo || v.lineInfo) ? `<div style="color:var(--text-gray); font-size:13px;">${escapeHtml([v.pageInfo, v.lineInfo].filter(Boolean).join(', '))}</div>` : ''}
             </div>
-            <div style="font-size:15px; font-weight:500; margin-bottom:12px;">${v.message}</div>
+            <div style="font-size:15px; font-weight:500; margin-bottom:12px;">${escapeHtml(v.message)}</div>
             ${v.recommendation ? `
               <div style="background:#FFF7ED; border-radius:8px; padding:12px; font-size:14px; color:#92400E;">
                 <div style="font-weight:bold; font-size:13px; margin-bottom:4px;">Рекомендация</div>
-                ${v.recommendation}
+                ${escapeHtml(v.recommendation)}
               </div>
             ` : ''}
           </div>
         `;
       });
+
+      if (!res.violations || res.violations.length === 0) {
+        list.innerHTML = `
+          <div class="card" style="text-align:center; padding:32px;">
+            <h3 style="color:var(--success); margin-bottom:8px;">Нарушений не найдено</h3>
+            <p style="color:var(--text-gray);">Результат получен от реальной проверки документа.</p>
+          </div>
+        `;
+      }
     }
 
     function downloadReport() {
       if (!currentDocId) return;
-      downloadFile(`/api/v1/documents/${currentDocId}/report/download`, 'normacontrol-report.pdf');
+      downloadFile(`/api/v1/documents/${currentDocId}/report/download`, `${currentFileBase()}_report.pdf`);
+    }
+
+    async function autoFix() {
+      if (!currentDocId) return;
+      const btn = document.getElementById('autoFixBtn');
+      btn.disabled = true;
+      btn.textContent = 'Исправляем...';
+      
+      try {
+        const res = await apiCall(`/api/v1/documents/${currentDocId}/fix`, { method: 'POST' });
+        if (res && res.fixedDocumentUrl) {
+          const manualCount = (res.manualActions || []).length;
+          showToast(`Авто-исправлено: ${res.fixedCount}. Ручных пунктов: ${manualCount}.`, 'success');
+          downloadFile(res.fixedDocumentUrl, `fixed_${currentFileBase()}.docx`);
+          if (manualCount > 0) {
+            alert('Что нужно проверить вручную:\n\n' + res.manualActions.map((item, index) => `${index + 1}. ${item}`).join('\n'));
+          }
+        } else {
+          showToast('Ошибка при авто-исправлении', 'error');
+        }
+      } catch(e) {
+        showToast('Ошибка сервера', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Авто-исправить';
+      }
+    }
+
+    async function compareVersions() {
+      if (!currentDocId) return;
+
+      if (!isDocx(currentDocument())) {
+        showToast('Сравнение версий доступно для DOCX-файлов', 'info');
+        return;
+      }
+
+      let data = await apiCall('/api/v1/documents');
+      docsCache = Array.isArray(data) ? data : (data?.content || []);
+      let docs = docsCache.filter(d => d.id !== currentDocId && d.status === 'CHECKED' && isDocx(d));
+      const panel = document.getElementById('comparePanel');
+      const select = document.getElementById('compareDocSelect');
+      const result = document.getElementById('compareResult');
+      result.style.display = 'none';
+      result.innerHTML = '';
+
+      if (docs.length === 0) {
+        showToast('Нет других проверенных DOCX-файлов для сравнения', 'info');
+        return;
+      }
+
+      select.innerHTML = docs.map(d => {
+        const name = escapeHtml(d.originalFilename || d.fileName || d.name || d.id);
+        return `<option value="${d.id}">${name}</option>`;
+      }).join('');
+      panel.style.display = 'block';
+    }
+
+    function closeComparePanel() {
+      document.getElementById('comparePanel').style.display = 'none';
+    }
+
+    async function runCompare() {
+      const doc2Id = document.getElementById('compareDocSelect').value;
+      if (!currentDocId || !doc2Id) return;
+
+      const btn = document.getElementById('runCompareBtn');
+      btn.disabled = true;
+      btn.textContent = 'Сравниваем...';
+
+      const res = await apiCall('/api/v1/documents/compare', {
+        method: 'POST',
+        body: JSON.stringify({ documentV1Id: currentDocId, documentV2Id: doc2Id })
+      });
+
+      btn.disabled = false;
+      btn.textContent = 'Сравнить';
+
+      if (res) {
+        const result = document.getElementById('compareResult');
+        const improvement = Number(res.scoreImprovement || 0);
+        result.style.display = 'block';
+        result.innerHTML = `
+          <div style="background:var(--bg-secondary); border-radius:8px; padding:14px;">
+            <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:12px; text-align:center;">
+              <div><div style="color:var(--text-gray); font-size:12px;">Текущий</div><strong>${res.scoreV1}</strong></div>
+              <div><div style="color:var(--text-gray); font-size:12px;">Выбранный</div><strong>${res.scoreV2}</strong></div>
+              <div><div style="color:var(--text-gray); font-size:12px;">Разница</div><strong style="color:${improvement >= 0 ? 'var(--success)' : 'var(--danger)'}">${improvement > 0 ? '+' : ''}${improvement}</strong></div>
+              <div><div style="color:var(--text-gray); font-size:12px;">Исправлено</div><strong>${(res.fixedViolations || []).length}</strong></div>
+            </div>
+            <div style="margin-top:12px; color:var(--text-gray); font-size:13px;">
+              Новых нарушений: ${(res.newViolations || []).length}. Осталось общих: ${(res.persistentViolations || []).length}.
+            </div>
+          </div>
+        `;
+      } else {
+        showToast('Ошибка при сравнении', 'error');
+      }
     }
   </script>
 </body>
 </html>
+

@@ -92,14 +92,14 @@ public class AuditController {
         } catch (Exception e) {
             log.error("Ошибка: {}", e.getMessage(), e);
             String csv = "timestamp,userId,userEmail,action,resourceType,resourceId,ipAddress,userAgent,success,errorMessage\n";
-            return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename("audit_demo.csv").build().toString())
+            return ResponseEntity.internalServerError()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment().filename("audit_error.csv").build().toString())
                     .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
                     .body(csv.getBytes(StandardCharsets.UTF_8));
         }
     }
 
-    @GetMapping("/stats")
+    @GetMapping("/audit/stats")
     @PreAuthorize("hasRole('ADMIN') or hasAuthority('ROLE_ADMIN')")
     public ResponseEntity<AdminStatsDto> getStats() {
         try {
@@ -117,18 +117,7 @@ public class AuditController {
             ));
         } catch (Exception e) {
             log.error("Ошибка: {}", e.getMessage(), e);
-            return ResponseEntity.ok(new AdminStatsDto(
-                    5,
-                    8,
-                    76,
-                    2,
-                    2,
-                    List.of(
-                            new ViolationStatDto("STRUCTURE.MISSING_SECTION", 12, "Отсутствует раздел"),
-                            new ViolationStatDto("FORMAT.WRONG_FONT", 8, "Неверный шрифт"),
-                            new ViolationStatDto("LANGUAGE.FORBIDDEN_PHRASE", 5, "Запрещённая фраза")
-                    )
-            ));
+            return ResponseEntity.internalServerError().build();
         }
     }
 

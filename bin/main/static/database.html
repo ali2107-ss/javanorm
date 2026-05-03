@@ -144,33 +144,42 @@
           document.getElementById('dbStatusText').textContent = 'Подключено';
         } else throw new Error();
       } catch {
-        // Fallback for demo
-        document.getElementById('dbStatusDot').style.background = 'var(--success)';
-        document.getElementById('dbStatusText').textContent = 'Подключено (Демо)';
+        document.getElementById('dbStatusDot').style.background = 'var(--danger)';
+        document.getElementById('dbStatusText').textContent = 'Нет подключения';
       }
     }
 
     async function loadData() {
-      // Имитация загрузки для демо (т.к. нет прямых эндпоинтов для всех таблиц в ТЗ)
-      setTimeout(() => {
-        document.querySelector('#tUsers tbody').innerHTML = `
-          <tr><td>${formatUUID('123e4567-e89b-12d3-a456-426614174000')}</td><td>Идаят Али</td><td>admin@demo.ru</td><td><span class="badge warning">ADMIN</span></td><td>${formatDate(new Date())}</td></tr>
-          <tr><td>${formatUUID('987fcdeb-51a2-43d7-9012-345678901234')}</td><td>Иван Иванов</td><td>user@demo.ru</td><td><span class="badge" style="background:#E5F1FF;color:#007AFF">USER</span></td><td>${formatDate(new Date())}</td></tr>
-        `;
-        
-        document.querySelector('#tDocs tbody').innerHTML = `
-          <tr><td>${formatUUID('550e8400-e29b-41d4-a716-446655440000')}</td><td>${formatUUID('123e4567')}</td><td>ТЗ_Система.docx</td><td>${formatSize(1048576)}</td><td>${formatDate(new Date())}</td></tr>
-        `;
-        
-        document.querySelector('#tResults tbody').innerHTML = `
-          <tr><td>${formatUUID('6ba7b810-9dad-11d1-80b4-00c04fd430c8')}</td><td>${formatUUID('550e8400')}</td><td style="font-weight:bold;">85</td><td><span class="badge success">true</span></td><td>${formatDate(new Date())}</td></tr>
-        `;
-        
-        document.querySelector('#tAudit tbody').innerHTML = `
-          <tr><td>${formatUUID('f47ac10b-58cc-4372-a567-0e02b2c3d479')}</td><td>admin@demo.ru</td><td>LOGIN</td><td>USER_SESSION</td><td>${formatDate(new Date())}</td></tr>
-          <tr><td>${formatUUID('8c130ba2-1b12-4217-a068-0dc752c08477')}</td><td>admin@demo.ru</td><td>DOCUMENT_CHECK_START</td><td>DOCUMENT</td><td>${formatDate(new Date())}</td></tr>
-        `;
-      }, 800);
+      const empty = (selector, text) => {
+        document.querySelector(selector).innerHTML = `<tr><td colspan="5" style="text-align:center; color:var(--text-gray); padding:24px;">${text}</td></tr>`;
+      };
+
+      const me = await apiCall('/api/v1/users/me');
+      document.querySelector('#tUsers tbody').innerHTML = me ? `
+        <tr><td>${formatUUID(me.id)}</td><td>${me.fullName || me.name || '-'}</td><td>${me.email || '-'}</td><td><span class="badge warning">${me.role || me.roles || 'USER'}</span></td><td>${formatDate(me.createdAt)}</td></tr>
+      ` : '';
+      if (!me) empty('#tUsers tbody', 'Пользователь не получен от API');
+
+      const docsData = await apiCall('/api/v1/documents');
+      const docs = Array.isArray(docsData) ? docsData : (docsData?.content || []);
+      document.querySelector('#tDocs tbody').innerHTML = docs.map(d => `
+        <tr><td>${formatUUID(d.id)}</td><td>${formatUUID(d.ownerId)}</td><td>${d.originalFilename || '-'}</td><td>${formatSize(d.fileSize)}</td><td>${formatDate(d.createdAt)}</td></tr>
+      `).join('');
+      if (!docs.length) empty('#tDocs tbody', 'Документы не найдены');
+
+      const results = await Promise.all(docs.map(d => apiCall(`/api/v1/documents/${d.id}/result`)));
+      const realResults = results.filter(Boolean);
+      document.querySelector('#tResults tbody').innerHTML = realResults.map(r => `
+        <tr><td>${formatUUID(r.id)}</td><td>${formatUUID(r.documentId)}</td><td style="font-weight:bold;">${r.complianceScore ?? 0}</td><td><span class="badge ${r.passed ? 'success' : 'danger'}">${r.passed}</span></td><td>${formatDate(r.checkedAt)}</td></tr>
+      `).join('');
+      if (!realResults.length) empty('#tResults tbody', 'Результаты проверок не найдены');
+
+      const auditData = await apiCall('/api/v1/admin/audit?size=10');
+      const audit = auditData?.content || [];
+      document.querySelector('#tAudit tbody').innerHTML = audit.map(a => `
+        <tr><td>${formatUUID(a.id)}</td><td>${a.userEmail || formatUUID(a.userId)}</td><td>${a.action || '-'}</td><td>${a.resourceType || '-'}</td><td>${formatDate(a.timestamp)}</td></tr>
+      `).join('');
+      if (!audit.length) empty('#tAudit tbody', 'Audit API пуст или доступен только администратору');
     }
   </script>
 </body>

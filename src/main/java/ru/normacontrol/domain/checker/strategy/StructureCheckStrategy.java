@@ -130,6 +130,8 @@ public class StructureCheckStrategy implements CheckStrategy {
                 String style = paragraph.getStyle();
                 if (style != null && style.toLowerCase().contains("heading")) {
                     headings.add(text.toLowerCase());
+                } else if (isStandaloneSectionTitle(text)) {
+                    headings.add(text.toLowerCase());
                 } else if (!text.isEmpty() && text.equals(text.toUpperCase()) && text.length() > 3) {
                     headings.add(text.toLowerCase());
                 }
@@ -222,6 +224,23 @@ public class StructureCheckStrategy implements CheckStrategy {
             }
         }
         return 0;
+    }
+
+    private boolean isStandaloneSectionTitle(String text) {
+        if (text == null || text.isBlank() || text.length() > 120) {
+            return false;
+        }
+        String lower = text.toLowerCase(Locale.ROOT).replace('ё', 'е');
+        return allSections().stream()
+                .flatMap(section -> section.keywords().stream())
+                .map(keyword -> keyword.toLowerCase(Locale.ROOT).replace('ё', 'е'))
+                .anyMatch(keyword -> lower.equals(keyword) || lower.matches("^\\d+(\\.\\d+)*\\s+" + java.util.regex.Pattern.quote(keyword) + "$"));
+    }
+
+    private List<RequiredSection> allSections() {
+        List<RequiredSection> sections = new ArrayList<>(REQUIRED_SECTIONS);
+        sections.addAll(REQUIREMENTS_SUBSECTIONS);
+        return sections;
     }
 
     /**

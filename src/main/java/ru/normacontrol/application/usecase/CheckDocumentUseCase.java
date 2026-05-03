@@ -16,7 +16,6 @@ import ru.normacontrol.domain.entity.CheckResult;
 import ru.normacontrol.domain.entity.Document;
 import ru.normacontrol.domain.entity.Violation;
 import ru.normacontrol.domain.enums.ViolationSeverity;
-import ru.normacontrol.domain.event.CheckStartedEvent;
 import ru.normacontrol.domain.event.DomainEventPublisher;
 import ru.normacontrol.domain.repository.CheckResultRepository;
 import ru.normacontrol.domain.repository.ReadDocumentRepository;
@@ -28,6 +27,7 @@ import ru.normacontrol.infrastructure.minio.MinioStorageService;
 import ru.normacontrol.infrastructure.parser.DocumentParserChain;
 import ru.normacontrol.infrastructure.parser.DocumentType;
 import ru.normacontrol.infrastructure.parser.ParsedDocument;
+import ru.normacontrol.infrastructure.plagiarism.PlagiarismResult;
 import ru.normacontrol.infrastructure.report.ReportGenerator;
 import ru.normacontrol.infrastructure.websocket.ProgressPublisher;
 
@@ -36,6 +36,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -94,56 +95,45 @@ public class CheckDocumentUseCase {
       try {
         DocumentType docType = detectType(document.getOriginalFilename());
 
-        // Шаг 1: скачать файл
         progressPublisher.publishProgress(documentId, 15,
           "DOWNLOADING", "Загрузка файла из хранилища...");
-        Thread.sleep(1000);
         
         InputStream fileStream = storageService
           .download(document.getStorageKey());
 
-        // Шаг 2: определить парсер и разобрать файл
         progressPublisher.publishProgress(documentId, 30,
           "PARSING", "Разбор документа " + 
           document.getOriginalFilename() + "...");
-        Thread.sleep(1500);
         
         ParsedDocument parsed = parserChain.parse(fileStream, docType);
 
-        // Шаг 3: проверка ГОСТ правил
         progressPublisher.publishProgress(documentId, 55,
           "CHECKING", "Проверка по правилам ГОСТ 19.201-78...");
-        Thread.sleep(2000);
         
-        // Передаём и ParsedDocument и XWPFDocument если DOCX
         List<Violation> violations;
         if (docType == DocumentType.DOCX) {
-          InputStream stream2 = storageService
-            .download(document.getStorageKey());
-          XWPFDocument xwpf = new XWPFDocument(stream2);
-          violations = ruleEngine.check(xwpf, documentId, checkedBy).getViolations();
-          xwpf.close();
+          try (InputStream stream2 = storageService.download(document.getStorageKey());
+               XWPFDocument xwpf = new XWPFDocument(stream2)) {
+            violations = ruleEngine.check(xwpf, documentId, checkedBy).getViolations();
+          }
         } else {
           violations = ruleEngine.checkText(
             parsed.fullText(), parsed.sections());
         }
 
-        // Шаг 4: антиплагиат
         progressPublisher.publishProgress(documentId, 70,
           "PLAGIARISM", "Проверка уникальности текста...");
-        Thread.sleep(1500);
+        PlagiarismResult plagiarismResult = plagiarismChecker.check(parsed.fullText(), documentId);
+        plagiarismChecker.saveHashes(documentId, parsed.fullText());
+        addPlagiarismViolationIfNeeded(violations, plagiarismResult);
 
-        // Шаг 5: AI рекомендации
         progressPublisher.publishProgress(documentId, 82,
           "AI_ANALYSIS", "Генерация рекомендаций...");
-        Thread.sleep(1000);
+        fillRecommendations(violations, parsed.fullText());
 
-        // Шаг 6: генерация отчёта
         progressPublisher.publishProgress(documentId, 93,
           "REPORT", "Формирование PDF-отчёта...");
-        Thread.sleep(1000);
 
-        // Создать результат
         CheckResult result = CheckResult.builder()
           .id(UUID.randomUUID())
           .documentId(documentId)
@@ -152,6 +142,8 @@ public class CheckDocumentUseCase {
           .ruleSetName("ГОСТ 19.201-78")
           .ruleSetVersion("1.0")
           .processingTimeMs(System.currentTimeMillis() - startMs)
+          .uniquenessPercent(plagiarismResult.uniquenessPercent())
+          .plagiarismResult(plagiarismResult)
           .build();
 
         violations.forEach(result::addViolation);
@@ -200,5 +192,39 @@ public class CheckDocumentUseCase {
         CheckResult result = checkResultRepository.findLatestByDocumentId(documentId)
                 .orElseThrow(() -> new EntityNotFoundException("Результат проверки не найден: " + documentId));
         return checkResultMapper.toResponse(result);
+    }
+
+    private void fillRecommendations(List<Violation> violations, String fullText) {
+        String fragment = fullText == null ? "" : fullText.substring(0, Math.min(fullText.length(), 1200));
+        for (Violation violation : violations) {
+            try {
+                String recommendation = aiRecommendationService
+                        .generateRecommendation(violation, fragment)
+                        .get(8, TimeUnit.SECONDS);
+                violation.setAiSuggestion(recommendation);
+            } catch (Exception e) {
+                if (violation.getSuggestion() == null || violation.getSuggestion().isBlank()) {
+                    violation.setSuggestion("Исправьте нарушение согласно указанному пункту ГОСТ.");
+                }
+                log.warn("Не удалось сформировать рекомендацию для {}: {}", violation.getRuleCode(), e.getMessage());
+            }
+        }
+    }
+
+    private void addPlagiarismViolationIfNeeded(List<Violation> violations, PlagiarismResult plagiarismResult) {
+        if (plagiarismResult == null || plagiarismResult.uniquenessPercent() >= 70) {
+            return;
+        }
+        violations.add(Violation.builder()
+                .id(UUID.randomUUID())
+                .ruleCode("PLAGIARISM.LOW_UNIQUENESS")
+                .description("Уникальность текста " + plagiarismResult.uniquenessPercent()
+                        + "%, ниже минимального порога 70%")
+                .severity(ViolationSeverity.CRITICAL)
+                .pageNumber(0)
+                .lineNumber(0)
+                .suggestion("Перепишите совпадающие фрагменты своими словами и добавьте ссылки на источники.")
+                .ruleReference("Антиплагиат: минимальная уникальность 70%")
+                .build());
     }
 }

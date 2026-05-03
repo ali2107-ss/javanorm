@@ -52,11 +52,9 @@ public class AdminController {
             ));
         } catch (Exception e) {
             log.error("Ошибка получения статистики: {}", e.getMessage());
-            return ResponseEntity.ok(Map.of(
-                    "totalDocuments", 5,
-                    "passedDocuments", 3,
-                    "failedDocuments", 2,
-                    "averageScore", 76
+            return ResponseEntity.internalServerError().body(Map.of(
+                    "error", "STATS_UNAVAILABLE",
+                    "message", "Не удалось получить статистику из базы данных"
             ));
         }
     }
@@ -77,4 +75,3 @@ public class AdminController {
         }
     }
 }
-

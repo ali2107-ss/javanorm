@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <title>НормаКонтроль - Статистика</title>
   <link rel="stylesheet" href="style.css">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
   <script src="app.js"></script>
@@ -18,7 +17,7 @@
     <div class="content">
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 24px;">
         <div class="card" style="animation: fadeIn 0.4s ease;">
-          <h3 style="margin-bottom: 16px; font-size: 16px;">Распределение баллов</h3>
+          <h3 style="margin-bottom: 16px; font-size: 16px;">Динамика среднего балла</h3>
           <canvas id="distChart" style="width: 100%; height: 300px;"></canvas>
         </div>
         
@@ -29,17 +28,14 @@
       </div>
       
       <div class="card" style="animation: fadeIn 0.8s ease;">
-        <h3 style="margin-bottom: 16px; font-size: 16px;">Сводка по отделам/кафедрам</h3>
-        <div class="table-wrap">
-          <table>
+          <h3 style="margin-bottom: 16px; font-size: 16px;">Соответствие по разделам ГОСТ</h3>
+          <div class="table-wrap">
+          <table id="sectionTable">
             <thead>
-              <tr><th>Подразделение</th><th>Проверено</th><th>Ср. балл</th><th>Успешно</th></tr>
+              <tr><th>Раздел</th><th>Нарушений</th><th>Доля</th><th>Соответствие</th></tr>
             </thead>
             <tbody>
-              <tr><td>ИУ6 - Компьютерные системы</td><td>142</td><td>82</td><td><span class="badge success">88%</span></td></tr>
-              <tr><td>ИУ5 - Обработка информации</td><td>98</td><td>76</td><td><span class="badge warning">65%</span></td></tr>
-              <tr><td>ИУ7 - Программное обеспечение</td><td>215</td><td>85</td><td><span class="badge success">92%</span></td></tr>
-              <tr><td>РК6 - САПР</td><td>45</td><td>58</td><td><span class="badge danger">35%</span></td></tr>
+              <tr><td colspan="4" style="text-align:center;color:var(--text-gray);padding:24px;">Загрузка...</td></tr>
             </tbody>
           </table>
         </div>
@@ -52,48 +48,50 @@
       initCharts();
     }
 
-    function initCharts() {
-      const c1 = document.getElementById('distChart').getContext('2d');
-      new Chart(c1, {
-        type: 'bar',
-        data: {
-          labels: ['0-20', '21-40', '41-60', '61-80', '81-100'],
-          datasets: [{
-            label: 'Документов',
-            data: [5, 12, 34, 86, 142],
-            backgroundColor: [
-              '#FF3B30', '#FF9500', '#FFCC00', '#34C759', '#007AFF'
-            ],
-            borderRadius: 6
-          }]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          plugins: { legend: { display: false } }
-        }
+    async function initCharts() {
+      const [topViolations, scoreTrend, bySection] = await Promise.all([
+        apiCall('/api/v1/stats/top-violations?limit=5'),
+        apiCall('/api/v1/stats/score-trend?days=30'),
+        apiCall('/api/v1/stats/by-section')
+      ]);
+
+      const trendLabels = scoreTrend && scoreTrend.length
+        ? scoreTrend.map(d => formatDate(d.date).split(',')[0])
+        : [];
+      const trendValues = scoreTrend && scoreTrend.length
+        ? scoreTrend.map(d => d.averageScore)
+        : [];
+      drawLineChart(document.getElementById('distChart'), trendLabels, trendValues, {
+        color: '#007AFF',
+        fill: 'rgba(0,122,255,0.14)'
       });
 
-      const c2 = document.getElementById('violChart').getContext('2d');
-      new Chart(c2, {
-        type: 'doughnut',
-        data: {
-          labels: ['Поля', 'Шрифт', 'Нумерация', 'Оглавление', 'Интервалы'],
-          datasets: [{
-            data: [45, 25, 20, 15, 10],
-            backgroundColor: [
-              '#FF6B00', '#FF9500', '#FFCC00', '#34C759', '#007AFF'
-            ],
-            borderWidth: 0
-          }]
-        },
-        options: {
-          responsive: true, maintainAspectRatio: false,
-          cutout: '70%',
-          plugins: {
-            legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 8 } }
-          }
-        }
-      });
+      const violLabels = topViolations && topViolations.length
+        ? topViolations.map(v => (v.ruleCode || 'UNKNOWN').split('.').pop())
+        : [];
+      const violValues = topViolations && topViolations.length
+        ? topViolations.map(v => v.count)
+        : [];
+      drawBarChart(document.getElementById('violChart'), violLabels, violValues);
+
+      const tbody = document.querySelector('#sectionTable tbody');
+      const sections = Array.isArray(bySection) ? bySection : [];
+      if (!sections.length) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-gray);padding:24px;">Нет данных по разделам</td></tr>';
+        return;
+      }
+      tbody.innerHTML = sections.map(s => {
+        const rate = Math.round(s.complianceRate || 0);
+        const badge = rate >= 80 ? 'success' : rate >= 60 ? 'warning' : 'danger';
+        return `
+          <tr>
+            <td>${s.sectionName || s.rulePrefix}</td>
+            <td>${s.violationCount || 0}</td>
+            <td>${s.violationShare || 0}%</td>
+            <td><span class="badge ${badge}">${rate}%</span></td>
+          </tr>
+        `;
+      }).join('');
     }
   </script>
 </body>

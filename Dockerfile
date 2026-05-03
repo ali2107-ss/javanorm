@@ -7,7 +7,7 @@ COPY src/ src/
 RUN gradle bootJar --no-daemon -x test
 
 FROM eclipse-temurin:17-jre-alpine AS runtime
-RUN apk add --no-cache wget
+RUN apk add --no-cache wget ttf-dejavu
 RUN addgroup -S norma && adduser -S norma -G norma
 WORKDIR /app
 COPY --from=builder /app/build/libs/*.jar app.jar

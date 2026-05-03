@@ -63,7 +63,7 @@ public class FormattingCheckStrategy implements CheckStrategy {
             if (fontFamily != null && !fontFamily.isBlank() && ALLOWED_FONTS.stream().noneMatch(fontFamily::equalsIgnoreCase)) {
                 violations.add(Violation.builder()
                         .id(UUID.randomUUID())
-                        .ruleCode("FMT-001")
+                        .ruleCode("FORMAT.WRONG_FONT")
                         .description("Недопустимый шрифт: " + fontFamily)
                         .severity(ViolationSeverity.WARNING)
                         .pageNumber(0)
@@ -77,7 +77,7 @@ public class FormattingCheckStrategy implements CheckStrategy {
             if (fontSize != null && Math.abs(fontSize - TARGET_FONT_SIZE) > FONT_SIZE_TOLERANCE) {
                 violations.add(Violation.builder()
                         .id(UUID.randomUUID())
-                        .ruleCode("FMT-002")
+                        .ruleCode("FORMAT.WRONG_FONT_SIZE")
                         .description("Недопустимый кегль: " + fontSize)
                         .severity(ViolationSeverity.CRITICAL)
                         .pageNumber(0)
@@ -91,7 +91,7 @@ public class FormattingCheckStrategy implements CheckStrategy {
             if (alignment != null && alignment != ParagraphAlignment.BOTH && alignment != ParagraphAlignment.DISTRIBUTE) {
                 violations.add(Violation.builder()
                         .id(UUID.randomUUID())
-                        .ruleCode("FMT-003")
+                        .ruleCode("FORMAT.WRONG_ALIGNMENT")
                         .description("Неверное выравнивание")
                         .severity(ViolationSeverity.WARNING)
                         .pageNumber(0)

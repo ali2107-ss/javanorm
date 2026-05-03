@@ -34,6 +34,7 @@ import ru.normacontrol.infrastructure.report.ReportGenerator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.nio.charset.StandardCharsets;
 
 @Slf4j
 @RestController
@@ -107,10 +108,10 @@ public class DocumentController {
             ));
         } catch (Exception e) {
             log.error("Ошибка: {}", e.getMessage(), e);
-            return ResponseEntity.ok(Map.of(
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
                     "documentId", documentId,
-                    "status", "DEMO_STARTED",
-                    "message", "Проверка запущена в демо-режиме"
+                    "status", "FAILED",
+                    "message", "Не удалось запустить проверку: " + e.getMessage()
             ));
         }
     }
@@ -163,26 +164,14 @@ public class DocumentController {
             // Находим исходный документ (для метаданных в PDF)
             Document sourceDocument = readDocumentRepository.findById(documentId).orElse(null);
 
-            byte[] pdfBytes;
-
-            // Шаг 1: пробуем скачать готовый PDF из MinIO
-            if (result.getReportStoragePath() != null && !result.getReportStoragePath().isBlank()) {
-                try {
-                    pdfBytes = storageService.downloadBytes(result.getReportStoragePath());
-                    log.info("PDF отчёт скачан из MinIO: {}", result.getReportStoragePath());
-                } catch (Exception minioEx) {
-                    log.warn("Файл отчёта не найден в MinIO ({}), генерируем в памяти...", minioEx.getMessage());
-                    pdfBytes = reportGenerator.generatePdfBytes(result, sourceDocument);
-                }
-            } else {
-                // Шаг 2: путь не задан — генерируем сразу в памяти
-                log.info("reportStoragePath не задан — генерируем PDF в памяти для документа {}", documentId);
-                pdfBytes = reportGenerator.generatePdfBytes(result, sourceDocument);
-            }
+            byte[] pdfBytes = reportGenerator.generatePdfBytes(result, sourceDocument);
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION,
-                            "attachment; filename=\"report_normacontrol_" + documentId + ".pdf\"")
+                            ContentDisposition.attachment()
+                                    .filename(buildReportFilename(sourceDocument, documentId), StandardCharsets.UTF_8)
+                                    .build()
+                                    .toString())
                     .contentType(MediaType.APPLICATION_PDF)
                     .body(pdfBytes);
 
@@ -190,6 +179,18 @@ public class DocumentController {
             log.error("Ошибка генерации/скачивания отчёта для документа {}: {}", documentId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
+    }
+
+    private String buildReportFilename(Document sourceDocument, UUID documentId) {
+        String baseName = sourceDocument != null ? sourceDocument.getOriginalFilename() : null;
+        if (baseName == null || baseName.isBlank()) {
+            baseName = "document-" + documentId;
+        }
+        int dot = baseName.lastIndexOf('.');
+        if (dot > 0) {
+            baseName = baseName.substring(0, dot);
+        }
+        return baseName + "_report.pdf";
     }
 
     @DeleteMapping("/{documentId}")

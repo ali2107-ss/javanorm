@@ -8,9 +8,11 @@ function getUserInfo() {
   try {
     const token = getToken()
     if (!token) return { name: 'Пользователь', role: 'USER', initials: 'П' }
-    const payload = JSON.parse(atob(
-      token.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')
-    ))
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+    const payload = JSON.parse(jsonPayload);
     const name = payload.username || payload.name || 
                  payload.email || 'Пользователь'
     return {
@@ -53,18 +55,45 @@ async function downloadFile(url, filename) {
       headers: { 'Authorization': 'Bearer ' + getToken() }
     })
     if (!res.ok) {
-      showToast('Файл не найден или ещё генерируется', 'error')
+      const text = await res.text().catch(() => '')
+      showToast(text || 'Файл не найден или ещё генерируется', 'error')
       return
     }
     const blob = await res.blob()
     const link = document.createElement('a')
     link.href = URL.createObjectURL(blob)
-    link.download = filename
+    link.download = getDownloadFilename(res, filename)
     link.click()
-    URL.revokeObjectURL(link.href)
+    setTimeout(() => URL.revokeObjectURL(link.href), 1000)
   } catch(e) {
     showToast('Ошибка при скачивании', 'error')
   }
+}
+
+function getDownloadFilename(response, fallback = 'download') {
+  const disposition = response.headers.get('content-disposition') || ''
+  const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+  if (utf8Match) {
+    try { return decodeURIComponent(utf8Match[1].trim().replace(/^"|"$/g, '')) } catch(e) {}
+  }
+  const plainMatch = disposition.match(/filename="?([^";]+)"?/i)
+  if (plainMatch) {
+    return plainMatch[1].trim()
+  }
+  return fallback
+}
+
+function safeFilenamePart(value) {
+  return String(value || 'document')
+    .replace(/[\\/:*?"<>|]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function stripExtension(filename) {
+  const clean = safeFilenamePart(filename)
+  const dot = clean.lastIndexOf('.')
+  return dot > 0 ? clean.slice(0, dot) : clean
 }
 
 function showToast(message, type = 'info') {
@@ -129,6 +158,143 @@ function setActivePage() {
       el.style.color = '#FF6B00';
       el.style.fontWeight = '600';
     }
+  })
+}
+
+function setupCanvas(canvas) {
+  const rect = canvas.getBoundingClientRect()
+  const dpr = window.devicePixelRatio || 1
+  const width = Math.max(320, Math.floor(rect.width || canvas.clientWidth || 600))
+  const height = Math.max(220, Math.floor(rect.height || canvas.clientHeight || 300))
+  canvas.width = width * dpr
+  canvas.height = height * dpr
+  const ctx = canvas.getContext('2d')
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+  return { ctx, width, height }
+}
+
+function drawEmptyCanvas(canvas, message = 'Нет данных') {
+  const { ctx, width, height } = setupCanvas(canvas)
+  ctx.clearRect(0, 0, width, height)
+  ctx.fillStyle = '#6E6E73'
+  ctx.font = '600 14px Inter, Arial, sans-serif'
+  ctx.textAlign = 'center'
+  ctx.fillText(message, width / 2, height / 2)
+}
+
+function drawLineChart(canvas, labels, values, options = {}) {
+  if (!canvas || !values || values.length === 0) {
+    if (canvas) drawEmptyCanvas(canvas)
+    return
+  }
+  const { ctx, width, height } = setupCanvas(canvas)
+  const pad = { left: 42, right: 18, top: 18, bottom: 34 }
+  const chartW = width - pad.left - pad.right
+  const chartH = height - pad.top - pad.bottom
+  const color = options.color || '#FF6B00'
+  const max = options.max ?? 100
+
+  ctx.clearRect(0, 0, width, height)
+  ctx.strokeStyle = '#E5E5EA'
+  ctx.lineWidth = 1
+  ctx.fillStyle = '#6E6E73'
+  ctx.font = '12px Inter, Arial, sans-serif'
+  ctx.textAlign = 'right'
+
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + chartH - (chartH * i / 4)
+    const val = Math.round(max * i / 4)
+    ctx.beginPath()
+    ctx.moveTo(pad.left, y)
+    ctx.lineTo(width - pad.right, y)
+    ctx.stroke()
+    ctx.fillText(val, pad.left - 8, y + 4)
+  }
+
+  const points = values.map((value, i) => {
+    const x = pad.left + (values.length === 1 ? chartW / 2 : chartW * i / (values.length - 1))
+    const y = pad.top + chartH - (Math.max(0, Math.min(max, Number(value) || 0)) / max) * chartH
+    return { x, y }
+  })
+
+  ctx.beginPath()
+  points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y))
+  ctx.strokeStyle = color
+  ctx.lineWidth = 3
+  ctx.stroke()
+
+  const gradient = ctx.createLinearGradient(0, pad.top, 0, height - pad.bottom)
+  gradient.addColorStop(0, options.fill || 'rgba(255,107,0,0.18)')
+  gradient.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.lineTo(points[points.length - 1].x, height - pad.bottom)
+  ctx.lineTo(points[0].x, height - pad.bottom)
+  ctx.closePath()
+  ctx.fillStyle = gradient
+  ctx.fill()
+
+  points.forEach(p => {
+    ctx.beginPath()
+    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2)
+    ctx.fillStyle = '#FFFFFF'
+    ctx.fill()
+    ctx.strokeStyle = color
+    ctx.lineWidth = 2
+    ctx.stroke()
+  })
+
+  ctx.fillStyle = '#6E6E73'
+  ctx.textAlign = 'center'
+  labels.forEach((label, i) => {
+    if (values.length > 8 && i % Math.ceil(values.length / 8) !== 0) return
+    const x = pad.left + (values.length === 1 ? chartW / 2 : chartW * i / (values.length - 1))
+    ctx.fillText(String(label), x, height - 10)
+  })
+}
+
+function drawBarChart(canvas, labels, values, options = {}) {
+  if (!canvas || !values || values.length === 0) {
+    if (canvas) drawEmptyCanvas(canvas)
+    return
+  }
+  const { ctx, width, height } = setupCanvas(canvas)
+  const pad = { left: 44, right: 16, top: 18, bottom: 52 }
+  const chartW = width - pad.left - pad.right
+  const chartH = height - pad.top - pad.bottom
+  const max = Math.max(1, ...values.map(v => Number(v) || 0))
+  const gap = 12
+  const barW = Math.max(18, (chartW - gap * (values.length - 1)) / values.length)
+
+  ctx.clearRect(0, 0, width, height)
+  ctx.strokeStyle = '#E5E5EA'
+  ctx.fillStyle = '#6E6E73'
+  ctx.font = '12px Inter, Arial, sans-serif'
+  ctx.textAlign = 'right'
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + chartH - (chartH * i / 4)
+    ctx.beginPath()
+    ctx.moveTo(pad.left, y)
+    ctx.lineTo(width - pad.right, y)
+    ctx.stroke()
+    ctx.fillText(Math.round(max * i / 4), pad.left - 8, y + 4)
+  }
+
+  values.forEach((value, i) => {
+    const h = ((Number(value) || 0) / max) * chartH
+    const x = pad.left + i * (barW + gap)
+    const y = pad.top + chartH - h
+    ctx.fillStyle = (options.colors || ['#FF6B00', '#007AFF', '#34C759', '#FF9500', '#FF3B30'])[i % 5]
+    ctx.fillRect(x, y, barW, h)
+    ctx.fillStyle = '#1C1C1E'
+    ctx.textAlign = 'center'
+    ctx.font = '600 12px Inter, Arial, sans-serif'
+    ctx.fillText(value, x + barW / 2, y - 6)
+    ctx.save()
+    ctx.translate(x + barW / 2, height - 12)
+    ctx.rotate(-Math.PI / 8)
+    ctx.fillStyle = '#6E6E73'
+    ctx.font = '11px Inter, Arial, sans-serif'
+    ctx.fillText(String(labels[i]).slice(0, 14), 0, 0)
+    ctx.restore()
   })
 }
 

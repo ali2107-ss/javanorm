@@ -171,16 +171,21 @@
     }
 
     async function loadDocs() {
-      const demoDocs = [
-        { id: '1', originalFilename: 'ТЗ_Система.docx', contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', size: 1048576, createdAt: new Date().toISOString(), status: 'CHECKED' },
-        { id: '2', originalFilename: 'Пояснительная.docx', contentType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', size: 512000, createdAt: new Date(Date.now()-86400000).toISOString(), status: 'CHECKED' },
-        { id: '3', originalFilename: 'Руководство.pdf', contentType: 'application/pdf', size: 2048000, createdAt: new Date(Date.now()-172800000).toISOString(), status: 'UPLOADED' }
-      ];
       let data = await apiCall('/api/v1/documents');
-      let docs = Array.isArray(data) ? data : (data?.content || demoDocs);
-      if (docs.length === 0) docs = demoDocs;
+      let docs = Array.isArray(data) ? data : (data?.content || []);
 
       const tbody = document.querySelector('#docsTable tbody');
+      if (docs.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" style="text-align:center; color:var(--text-gray); padding:32px;">
+              Документы не найдены. Загрузите файл, чтобы запустить реальную проверку.
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
       tbody.innerHTML = docs.map(doc => {
         const name = doc.originalFilename || doc.fileName || doc.name || 'Документ';
         let ext = name.split('.').pop().toUpperCase();
@@ -208,7 +213,7 @@
             <td>
               <div style="display:flex; gap:8px;">
                 <button class="btn btn-primary" style="padding:6px 12px; font-size:13px;" onclick="window.location.href='/check.html?doc=${doc.id}'">Проверить</button>
-                <button class="btn btn-outline" style="padding:6px 12px; font-size:13px;" onclick="downloadFile('/api/v1/documents/${doc.id}/report/download', 'report.pdf')">Отчёт</button>
+                <button class="btn btn-outline" style="padding:6px 12px; font-size:13px;" onclick="downloadFile('/api/v1/documents/${doc.id}/report/download', '${stripExtension(name)}_report.pdf')">Отчёт</button>
               </div>
             </td>
           </tr>

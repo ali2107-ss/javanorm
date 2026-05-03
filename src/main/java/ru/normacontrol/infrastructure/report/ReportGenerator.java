@@ -76,7 +76,7 @@ public class ReportGenerator {
      * </p>
      *
      * @param result         completed check result
-     * @param sourceDocument source document (may be {@code null} for demo results)
+     * @param sourceDocument source document (may be {@code null} for legacy results)
      * @return PDF bytes ready to stream to the client
      */
     public byte[] generatePdfBytes(CheckResult result, ru.normacontrol.domain.entity.Document sourceDocument) {
@@ -96,7 +96,7 @@ public class ReportGenerator {
             addPlagiarismPage(pdfDocument, pdf, regular, bold, result);
             addViolationsPages(pdf, regular, bold, result);
             addSignaturePage(pdf, regular);
-            pdf.flush();
+            pdf.close();
 
             return bos.toByteArray();
         } catch (Exception ex) {
@@ -143,7 +143,7 @@ public class ReportGenerator {
             addViolationsPages(pdf, regular, bold, result);
             addSignaturePage(pdf, regular);
 
-            pdf.flush();
+            pdf.close();
             storageService.upload(reportPath, outputStream.toByteArray(), "application/pdf");
         } catch (Exception ex) {
             throw new RuntimeException("Не удалось сформировать PDF-отчёт", ex);
@@ -204,9 +204,9 @@ public class ReportGenerator {
         Table stats = new Table(UnitValue.createPercentArray(new float[]{1, 1, 1}))
                 .useAllAvailableWidth()
                 .setFixedPosition(1, 36, 70, pageSize.getWidth() - 72);
-        stats.addCell(statCell("🔴 КРИТИЧНО: " + countBySeverity(result, ViolationSeverity.CRITICAL), RED, bold));
-        stats.addCell(statCell("🟡 ПРЕДУПРЕЖДЕНИЙ: " + countBySeverity(result, ViolationSeverity.WARNING), YELLOW, bold));
-        stats.addCell(statCell("ℹ ИНФОРМАЦИЯ: " + countBySeverity(result, ViolationSeverity.INFO), BLUE, bold));
+        stats.addCell(statCell("КРИТИЧНО: " + countBySeverity(result, ViolationSeverity.CRITICAL), RED, bold));
+        stats.addCell(statCell("ПРЕДУПРЕЖДЕНИЙ: " + countBySeverity(result, ViolationSeverity.WARNING), YELLOW, bold));
+        stats.addCell(statCell("ИНФОРМАЦИЯ: " + countBySeverity(result, ViolationSeverity.INFO), BLUE, bold));
         pdf.add(stats);
     }
 
@@ -377,8 +377,8 @@ public class ReportGenerator {
                     .setFontSize(11)
                     .setMarginBottom(8));
 
-            content.add(infoBlock("📌 Стандарт", violation.getRuleReference(), LIGHT_GRAY, regular, true));
-            content.add(infoBlock("💡 Рекомендация",
+            content.add(infoBlock("Стандарт", violation.getRuleReference(), LIGHT_GRAY, regular, true));
+            content.add(infoBlock("Рекомендация",
                     violation.getAiSuggestion() != null && !violation.getAiSuggestion().isBlank()
                             ? violation.getAiSuggestion()
                             : violation.getSuggestion(),
@@ -493,12 +493,12 @@ public class ReportGenerator {
 
     private String scoreLabel(int score) {
         if (score >= 80) {
-            return "✓ СООТВЕТСТВУЕТ ТРЕБОВАНИЯМ";
+            return "СООТВЕТСТВУЕТ ТРЕБОВАНИЯМ";
         }
         if (score >= 60) {
-            return "⚠ УСЛОВНО СООТВЕТСТВУЕТ";
+            return "УСЛОВНО СООТВЕТСТВУЕТ";
         }
-        return "✗ НЕ СООТВЕТСТВУЕТ ТРЕБОВАНИЯМ";
+        return "НЕ СООТВЕТСТВУЕТ ТРЕБОВАНИЯМ";
     }
 
     private int severityOrder(ViolationSeverity severity) {
@@ -554,6 +554,8 @@ public class ReportGenerator {
         List<String> candidates = List.of(
                 "C:/Windows/Fonts/arialbd.ttf",
                 "C:/Windows/Fonts/arial.ttf",
+                "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf",
+                "/usr/share/fonts/dejavu/DejaVuSans.ttf",
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
                 "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
                 "/usr/share/fonts/TTF/DejaVuSans-Bold.ttf",
