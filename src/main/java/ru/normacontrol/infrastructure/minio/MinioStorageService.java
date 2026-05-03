@@ -2,6 +2,7 @@ package ru.normacontrol.infrastructure.minio;
 
 import io.minio.*;
 
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -21,86 +22,82 @@ public class MinioStorageService {
     private final MinioClient minioClient;
     private final MinioConfig minioConfig;
 
-    /**
-     * Загрузить файл в MinIO.
-     */
+    @PostConstruct
+    public void init() {
+        try {
+            boolean exists = minioClient.bucketExists(
+                BucketExistsArgs.builder()
+                    .bucket(minioConfig.getBucketName()).build());
+            if (!exists) {
+                minioClient.makeBucket(
+                    MakeBucketArgs.builder()
+                        .bucket(minioConfig.getBucketName()).build());
+                log.info("Bucket создан: {}", minioConfig.getBucketName());
+            }
+        } catch (Exception e) {
+            log.error("Ошибка инициализации MinIO: {}", e.getMessage());
+        }
+    }
+
+    // Для совместимости со старым кодом
     public void uploadFile(String objectKey, MultipartFile file) {
         try {
-            ensureBucketExists();
-
-            minioClient.putObject(PutObjectArgs.builder()
-                    .bucket(minioConfig.getBucketName())
-                    .object(objectKey)
-                    .stream(file.getInputStream(), file.getSize(), -1)
-                    .contentType(file.getContentType())
-                    .build());
-
-            log.info("Файл загружен в MinIO: {}", objectKey);
-
+            upload(objectKey, file.getInputStream(), file.getContentType());
         } catch (Exception e) {
-            log.error("Ошибка загрузки файла в MinIO: {}", e.getMessage(), e);
-            throw new RuntimeException("Ошибка загрузки файла в хранилище", e);
+            throw new RuntimeException("Ошибка загрузки файла", e);
         }
     }
 
-    /**
-     * Upload raw bytes to MinIO.
-     *
-     * @param objectKey object key
-     * @param bytes file contents
-     * @param contentType content type
-     */
-    public void upload(String objectKey, byte[] bytes, String contentType) {
+    public String upload(String path, InputStream stream, String contentType) {
         try {
-            ensureBucketExists();
-
-            minioClient.putObject(PutObjectArgs.builder()
+            minioClient.putObject(
+                PutObjectArgs.builder()
                     .bucket(minioConfig.getBucketName())
-                    .object(objectKey)
-                    .stream(new ByteArrayInputStream(bytes), bytes.length, -1)
+                    .object(path)
+                    .stream(stream, -1, 10485760)
                     .contentType(contentType)
                     .build());
-
-            log.info("Р¤Р°Р№Р» Р·Р°РіСЂСѓР¶РµРЅ РІ MinIO: {}", objectKey);
+            log.info("Файл загружен в MinIO: {}", path);
+            return path;
         } catch (Exception e) {
-            log.error("РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё Р±Р°Р№С‚РѕРІ РІ MinIO: {}", e.getMessage(), e);
-            throw new RuntimeException("РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё С„Р°Р№Р»Р° РІ С…СЂР°РЅРёР»РёС‰Рµ", e);
+            log.error("Ошибка загрузки в MinIO: {}", e.getMessage());
+            throw new RuntimeException("Не удалось сохранить файл: " + e.getMessage());
         }
     }
 
-    /**
-     * Скачать файл из MinIO.
-     */
-    public InputStream downloadFile(String objectKey) {
+    public void uploadBytes(String path, byte[] bytes, String contentType) {
+        upload(path, new ByteArrayInputStream(bytes), contentType);
+    }
+
+    public void upload(String path, byte[] bytes, String contentType) {
+        upload(path, new ByteArrayInputStream(bytes), contentType);
+    }
+
+    public InputStream download(String path) {
         try {
-            return minioClient.getObject(GetObjectArgs.builder()
+            return minioClient.getObject(
+                GetObjectArgs.builder()
                     .bucket(minioConfig.getBucketName())
-                    .object(objectKey)
+                    .object(path)
                     .build());
         } catch (Exception e) {
-            log.error("Ошибка скачивания файла из MinIO: {}", e.getMessage(), e);
-            throw new RuntimeException("Ошибка скачивания файла из хранилища", e);
+            log.error("Ошибка скачивания из MinIO: {}", e.getMessage());
+            throw new RuntimeException("Файл не найден: " + path);
         }
     }
 
-    /**
-     * Download an object into a byte array.
-     *
-     * @param objectKey object key
-     * @return file bytes
-     */
-    public byte[] downloadBytes(String objectKey) {
-        try (InputStream inputStream = downloadFile(objectKey)) {
-            return inputStream.readAllBytes();
+    public InputStream downloadFile(String path) {
+        return download(path);
+    }
+
+    public byte[] downloadBytes(String path) {
+        try (InputStream stream = download(path)) {
+            return stream.readAllBytes();
         } catch (Exception e) {
-            log.error("РћС€РёР±РєР° С‡С‚РµРЅРёСЏ Р±Р°Р№С‚РѕРІ РёР· MinIO: {}", e.getMessage(), e);
-            throw new RuntimeException("РћС€РёР±РєР° С‡С‚РµРЅРёСЏ С„Р°Р№Р»Р° РёР· С…СЂР°РЅРёР»РёС‰Р°", e);
+            throw new RuntimeException("Ошибка чтения файла: " + path);
         }
     }
 
-    /**
-     * Удалить файл из MinIO.
-     */
     public void deleteFile(String objectKey) {
         try {
             minioClient.removeObject(RemoveObjectArgs.builder()
@@ -111,20 +108,6 @@ public class MinioStorageService {
         } catch (Exception e) {
             log.error("Ошибка удаления файла из MinIO: {}", e.getMessage(), e);
             throw new RuntimeException("Ошибка удаления файла из хранилища", e);
-        }
-    }
-
-    private void ensureBucketExists() throws Exception {
-        boolean exists = minioClient.bucketExists(
-                BucketExistsArgs.builder()
-                        .bucket(minioConfig.getBucketName())
-                        .build());
-        if (!exists) {
-            minioClient.makeBucket(
-                    MakeBucketArgs.builder()
-                            .bucket(minioConfig.getBucketName())
-                            .build());
-            log.info("Создан bucket MinIO: {}", minioConfig.getBucketName());
         }
     }
 }

@@ -31,7 +31,7 @@ public class MdDocumentParser implements DocumentParser {
             String fullText = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
             List<ParsedSection> sections = Arrays.stream(fullText.split("\\R"))
                     .filter(line -> line.startsWith("#"))
-                    .map(line -> new ParsedSection(line.replaceFirst("^#+\\s*", ""), ""))
+                    .map(line -> new ParsedSection(line.replaceFirst("^#+\\s*", ""), 1, 0))
                     .toList();
             return new ParsedDocument(fullText, sections, List.of(), List.of(), Map.of("format", "md"));
         } catch (Exception ex) {

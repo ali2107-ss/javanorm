@@ -8,6 +8,7 @@ import ru.normacontrol.domain.checker.strategy.CheckStrategy;
 import ru.normacontrol.domain.entity.CheckResult;
 import ru.normacontrol.domain.entity.Violation;
 import ru.normacontrol.domain.enums.ViolationSeverity;
+import ru.normacontrol.infrastructure.parser.ParsedSection;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -157,6 +158,42 @@ public class GostRuleEngine {
 
         log.info("createXwpfFromText: создан XWPFDocument из {} параграфов (из {} строк)", added, lines.length);
         return doc;
+    }
+
+    public List<Violation> checkText(String fullText, List<ParsedSection> sections) {
+        List<Violation> violations = new ArrayList<>();
+        
+        // Проверка структуры (простая)
+        List<String> required = List.of(
+            "введение", "назначение", "основания"
+        );
+        String lowerFull = fullText.toLowerCase();
+        
+        for (String req : required) {
+            if (!lowerFull.contains(req)) {
+                violations.add(Violation.builder()
+                    .id(UUID.randomUUID())
+                    .ruleCode("GOST-TEXT-001")
+                    .description("Отсутствует обязательный раздел: " + req)
+                    .severity(ViolationSeverity.CRITICAL)
+                    .build());
+            }
+        }
+        
+        // Проверка слов-паразитов
+        List<String> forbidden = List.of("и т.д.", "и т.п.", "короче");
+        for (String bad : forbidden) {
+            if (lowerFull.contains(bad)) {
+                violations.add(Violation.builder()
+                    .id(UUID.randomUUID())
+                    .ruleCode("GOST-TEXT-002")
+                    .description("Запрещённое выражение: " + bad)
+                    .severity(ViolationSeverity.WARNING)
+                    .build());
+            }
+        }
+        
+        return violations;
     }
 
     // ── Private helpers ─────────────────────────────────────────────────────

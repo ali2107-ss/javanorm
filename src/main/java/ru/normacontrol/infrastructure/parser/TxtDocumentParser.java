@@ -4,43 +4,48 @@ import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
-/**
- * Plain-text parser.
- */
 @Component
 public class TxtDocumentParser implements DocumentParser {
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean supports(DocumentType type) {
-        return type == DocumentType.TXT;
-    }
+  @Override
+  public boolean supports(DocumentType type) {
+    return type == DocumentType.TXT || type == DocumentType.MD;
+  }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public ParsedDocument parse(InputStream stream) {
-        try {
-            String fullText = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-            List<ParsedSection> sections = Arrays.stream(fullText.split("\\R\\R+"))
-                    .filter(block -> !block.isBlank())
-                    .map(block -> new ParsedSection(firstLine(block), block))
-                    .toList();
-            return new ParsedDocument(fullText, sections, List.of(), List.of(), Map.of("format", "txt"));
-        } catch (Exception ex) {
-            throw new IllegalArgumentException("Failed to parse TXT document", ex);
+  @Override
+  public ParsedDocument parse(InputStream stream) {
+    try {
+      String fullText = new String(stream.readAllBytes(), 
+        StandardCharsets.UTF_8);
+      
+      List<ParsedSection> sections = new ArrayList<>();
+      String[] lines = fullText.split("\n");
+      
+      for (int i = 0; i < lines.length; i++) {
+        String line = lines[i].trim();
+        // Markdown заголовки
+        if (line.startsWith("# ")) {
+          sections.add(new ParsedSection(
+            line.substring(2), 1, i));
+        } else if (line.startsWith("## ")) {
+          sections.add(new ParsedSection(
+            line.substring(3), 2, i));
         }
+        // Текстовые заголовки (цифра + точка)
+        else if (line.matches("^\\d+\\.\\s+[А-ЯA-Z].*")) {
+          sections.add(new ParsedSection(line, 1, i));
+        }
+      }
+      
+      return new ParsedDocument(fullText, sections,
+        new ArrayList<>(), new ArrayList<>(), new HashMap<>());
+        
+    } catch (Exception e) {
+      throw new RuntimeException("Ошибка чтения файла");
     }
-
-    private String firstLine(String block) {
-        String[] lines = block.split("\\R", 2);
-        return lines.length == 0 ? "" : lines[0];
-    }
+  }
 }

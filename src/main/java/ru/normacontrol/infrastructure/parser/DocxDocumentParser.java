@@ -1,76 +1,93 @@
 package ru.normacontrol.infrastructure.parser;
 
-import org.apache.poi.xwpf.usermodel.XWPFDocument;
-import org.apache.poi.xwpf.usermodel.XWPFParagraph;
-import org.apache.poi.xwpf.usermodel.XWPFTable;
-import org.apache.poi.xwpf.usermodel.XWPFTableRow;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ooxml.POIXMLProperties.CoreProperties;
+import org.apache.poi.xwpf.usermodel.*;
 import org.springframework.stereotype.Component;
 
 import java.io.InputStream;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * DOCX parser based on Apache POI.
- */
+@Slf4j
 @Component
 public class DocxDocumentParser implements DocumentParser {
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public boolean supports(DocumentType type) {
-        return type == DocumentType.DOCX;
-    }
+  @Override
+  public boolean supports(DocumentType type) {
+    return type == DocumentType.DOCX;
+  }
 
-    /**
-     * {@inheritDoc}
-     */
-    @Override
-    public ParsedDocument parse(InputStream stream) {
-        try (XWPFDocument document = new XWPFDocument(stream)) {
-            StringBuilder fullText = new StringBuilder();
-            List<ParsedSection> sections = new ArrayList<>();
-            List<ParsedTable> tables = new ArrayList<>();
-            List<String> figureCaptions = new ArrayList<>();
-            Map<String, String> metadata = new LinkedHashMap<>();
-
-            for (XWPFParagraph paragraph : document.getParagraphs()) {
-                String text = paragraph.getText();
-                if (text == null || text.isBlank()) {
-                    continue;
-                }
-                fullText.append(text).append(System.lineSeparator());
-                if (isHeading(paragraph)) {
-                    sections.add(new ParsedSection(text.trim(), ""));
-                }
-                if (text.trim().matches("(?i)^рисунок\\s+\\d+.*")) {
-                    figureCaptions.add(text.trim());
-                }
-            }
-
-            for (XWPFTable table : document.getTables()) {
-                List<String> rows = new ArrayList<>();
-                for (XWPFTableRow row : table.getRows()) {
-                    rows.add(row.getCell(0) != null ? row.getCell(0).getText() : "");
-                }
-                tables.add(new ParsedTable("", rows));
-            }
-
-            metadata.put("paragraphCount", Integer.toString(document.getParagraphs().size()));
-            metadata.put("tableCount", Integer.toString(document.getTables().size()));
-
-            return new ParsedDocument(fullText.toString(), sections, tables, figureCaptions, metadata);
-        } catch (Exception ex) {
-            throw new IllegalArgumentException("Failed to parse DOCX document", ex);
+  @Override
+  public ParsedDocument parse(InputStream stream) {
+    try {
+      XWPFDocument doc = new XWPFDocument(stream);
+      
+      StringBuilder fullText = new StringBuilder();
+      List<ParsedSection> sections = new ArrayList<>();
+      List<ParsedTable> tables = new ArrayList<>();
+      List<String> figureCaptions = new ArrayList<>();
+      
+      // Читаем все параграфы
+      for (XWPFParagraph para : doc.getParagraphs()) {
+        String text = para.getText().trim();
+        if (text.isEmpty()) continue;
+        
+        fullText.append(text).append("\n");
+        
+        // Определяем заголовки
+        String style = para.getStyle();
+        if (style != null && style.startsWith("Heading")) {
+          int level = 1;
+          try {
+            level = Integer.parseInt(style.replace("Heading","").trim());
+          } catch(Exception ignored){}
+          sections.add(new ParsedSection(
+            text, 
+            level,
+            fullText.length()
+          ));
         }
+        
+        // Ищем подписи рисунков
+        if (text.toLowerCase().startsWith("рисунок") ||
+            text.toLowerCase().startsWith("рис.")) {
+          figureCaptions.add(text);
+        }
+      }
+      
+      // Читаем таблицы
+      for (XWPFTable table : doc.getTables()) {
+        List<List<String>> rows = new ArrayList<>();
+        for (XWPFTableRow row : table.getRows()) {
+          List<String> cells = new ArrayList<>();
+          for (XWPFTableCell cell : row.getTableCells()) {
+            cells.add(cell.getText().trim());
+          }
+          rows.add(cells);
+        }
+        tables.add(new ParsedTable(rows));
+      }
+      
+      // Метаданные
+      Map<String, String> metadata = new HashMap<>();
+      CoreProperties props = doc.getProperties().getCoreProperties();
+      if (props.getCreator() != null) 
+        metadata.put("author", props.getCreator());
+      if (props.getTitle() != null)   
+        metadata.put("title", props.getTitle());
+      
+      doc.close();
+      
+      return new ParsedDocument(
+        fullText.toString(), sections, tables, 
+        figureCaptions, metadata);
+        
+    } catch (Exception e) {
+      log.error("Ошибка парсинга DOCX: {}", e.getMessage());
+      throw new RuntimeException("Не удалось разобрать DOCX файл");
     }
-
-    private boolean isHeading(XWPFParagraph paragraph) {
-        String style = paragraph.getStyle();
-        return style != null && style.toLowerCase().contains("heading");
-    }
+  }
 }
