@@ -76,17 +76,20 @@ function pageShell(active) {
     ['👤', 'Профиль', '/profile.html'],
     ['ℹ️', 'О проекте', '/about.html']
   ];
-  return `
+  const userName = getUserName();
+  const initial = userName ? userName.charAt(0).toUpperCase() : '👤';
+  
+  return \`
     <aside class="sidebar">
-      <div class="brand"><div class="brand-icon">🔍</div><div><b>НормаКонтроль</b><span>ГОСТ 19.201-78</span></div></div>
-      <nav class="nav">${items.map(([icon, text, href]) =>
-        `<a class="nav-link ${active === href ? 'active' : ''}" href="${href}"><span>${icon}</span>${text}</a>`
+      <div class="brand"><div class="brand-icon">📄</div><div><b>НормаКонтроль</b><span>АВТОМАТИЗАЦИЯ ГОСТ</span></div></div>
+      <nav class="nav">\${items.map(([icon, text, href]) =>
+        \`<a class="nav-link \${active === href ? 'active' : ''}" href="\${href}"><span>\${icon}</span>\${text}</a>\`
       ).join('')}</nav>
       <div class="sidebar-bottom">
-        <div class="user-chip"><div class="avatar">👤</div><div><small>Пользователь</small><b id="menuUserName">${getUserName()}</b></div></div>
-        <button class="logout" onclick="logout()">Выйти</button>
+        <div class="user-chip"><div class="avatar">\${initial}</div><div><small>Пользователь</small><b id="menuUserName">\${userName}</b></div></div>
+        <button class="logout" onclick="logout()"><span>🚪</span> Выйти</button>
       </div>
-    </aside>`;
+    </aside>\`;
 }
 
 function showModal(title, body) {

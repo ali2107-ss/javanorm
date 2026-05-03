@@ -7,38 +7,82 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <style>
+    /* Specific styles for auth toggle */
+    .auth-tabs { display: flex; border-bottom: 2px solid var(--line); margin-bottom: 24px; }
+    .auth-tab { flex: 1; text-align: center; padding: 12px; font-weight: 700; cursor: pointer; color: var(--muted); transition: var(--transition); border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .auth-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+    .auth-tab:hover:not(.active) { color: var(--text); }
+  </style>
 </head>
 <body class="login-page">
   <main class="login-card">
     <div class="login-logo">
-      <span class="icon">🔍</span>
+      <span class="icon">📄</span>
       <h1>НормаКонтроль</h1>
-      <p>Проверка документов по ГОСТ 19.201-78</p>
+      <p>Автоматизированная проверка ГОСТ</p>
     </div>
 
-    <div class="field">
-      <label for="email">Email</label>
-      <div class="input-wrap"><span>✉️</span><input id="email" type="email" value="admin@demo.ru" autocomplete="username"></div>
-    </div>
-    <div class="field">
-      <label for="password">Пароль</label>
-      <div class="input-wrap"><span>🔒</span><input id="password" type="password" value="Admin1234!" autocomplete="current-password"></div>
+    <div class="auth-tabs">
+      <div class="auth-tab active" id="tabLogin" onclick="switchTab('login')">Вход</div>
+      <div class="auth-tab" id="tabRegister" onclick="switchTab('register')">Регистрация</div>
     </div>
 
-    <div class="error-box" id="errorBox"></div>
-    <button class="btn btn-primary btn-full" onclick="login()">Войти</button>
+    <!-- Login Form -->
+    <div id="formLogin">
+      <div class="field">
+        <label for="email">Email</label>
+        <div class="input-wrap"><span>✉️</span><input id="email" type="email" value="admin@demo.ru" autocomplete="username"></div>
+      </div>
+      <div class="field">
+        <label for="password">Пароль</label>
+        <div class="input-wrap"><span>🔒</span><input id="password" type="password" value="Admin1234!" autocomplete="current-password"></div>
+      </div>
 
-    <div style="text-align:center;color:#6b7280;margin-top:24px;font-weight:800">Быстрый вход</div>
-    <div class="quick-login">
-      <button class="btn btn-soft" onclick="quickLogin('admin@demo.ru','Admin1234!')">👑 Админ</button>
-      <button class="btn btn-soft" onclick="quickLogin('user@demo.ru','User1234!')">👤 Студент</button>
+      <div class="error-box" id="errorBoxLogin"></div>
+      <button class="btn btn-primary btn-full" onclick="login()">Войти в систему</button>
+
+      <div style="text-align:center;color:var(--muted);margin-top:28px;font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Демо-доступ</div>
+      <div class="quick-login">
+        <button class="btn btn-soft" onclick="quickLogin('admin@demo.ru','Admin1234!')">👑 Админ</button>
+        <button class="btn btn-soft" onclick="quickLogin('user@demo.ru','User1234!')">👤 Студент</button>
+      </div>
     </div>
+
+    <!-- Register Form -->
+    <div id="formRegister" style="display:none">
+      <div class="field">
+        <label for="regName">ФИО</label>
+        <div class="input-wrap"><span>👤</span><input id="regName" type="text" placeholder="Иванов Иван"></div>
+      </div>
+      <div class="field">
+        <label for="regEmail">Email</label>
+        <div class="input-wrap"><span>✉️</span><input id="regEmail" type="email" placeholder="student@university.ru"></div>
+      </div>
+      <div class="field">
+        <label for="regPassword">Пароль</label>
+        <div class="input-wrap"><span>🔒</span><input id="regPassword" type="password" placeholder="Минимум 8 символов"></div>
+      </div>
+
+      <div class="error-box" id="errorBoxRegister"></div>
+      <button class="btn btn-primary btn-full" onclick="register()">Зарегистрироваться</button>
+    </div>
+
   </main>
 
   <script src="app.js"></script>
   <script>
-    function showError(text) {
-      const box = document.getElementById('errorBox');
+    function switchTab(tab) {
+      document.getElementById('tabLogin').classList.toggle('active', tab === 'login');
+      document.getElementById('tabRegister').classList.toggle('active', tab === 'register');
+      document.getElementById('formLogin').style.display = tab === 'login' ? 'block' : 'none';
+      document.getElementById('formRegister').style.display = tab === 'register' ? 'block' : 'none';
+      document.getElementById('errorBoxLogin').style.display = 'none';
+      document.getElementById('errorBoxRegister').style.display = 'none';
+    }
+
+    function showError(form, text) {
+      const box = document.getElementById(form === 'login' ? 'errorBoxLogin' : 'errorBoxRegister');
       box.textContent = text;
       box.style.display = 'block';
     }
@@ -78,10 +122,10 @@
     async function login() {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value.trim();
-      document.getElementById('errorBox').style.display = 'none';
+      document.getElementById('errorBoxLogin').style.display = 'none';
 
       if (!email || !password) {
-        showError('Введите email и пароль');
+        showError('login', 'Введите email и пароль');
         return;
       }
 
@@ -99,7 +143,38 @@
         window.location.href = '/dashboard.html';
       } catch (e) {
         if (tryDemoLogin(email, password)) return;
-        showError(e.message || 'Ошибка входа');
+        showError('login', e.message || 'Ошибка входа');
+      }
+    }
+
+    async function register() {
+      const name = document.getElementById('regName').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const password = document.getElementById('regPassword').value.trim();
+      document.getElementById('errorBoxRegister').style.display = 'none';
+
+      if (!name || !email || !password) {
+        showError('register', 'Заполните все поля');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/v1/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: name, email: email, password: password })
+        });
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({}));
+          throw new Error(errData.message || 'Ошибка при регистрации');
+        }
+        // Auto login after successful registration
+        document.getElementById('email').value = email;
+        document.getElementById('password').value = password;
+        switchTab('login');
+        login();
+      } catch (e) {
+        showError('register', e.message || 'Сбой регистрации');
       }
     }
   </script>
