@@ -7,6 +7,69 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <style>
+    /* ── Карточки нарушений ─────────────────────────────────── */
+    .violation-card {
+      border-left: 5px solid;
+      border-radius: 14px;
+      padding: 16px 18px;
+      margin: 10px 0;
+      background: #fff;
+    }
+    .violation-card.critical { border-color: #dc2626; background: #fff7f7; }
+    .violation-card.warning  { border-color: #d97706; background: #fffaf0; }
+    .violation-card.info     { border-color: #2f7ed8; background: #f3f8ff; }
+
+    .violation-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .badge-sev {
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-weight: 800;
+      font-size: 11px;
+      text-transform: uppercase;
+    }
+    .badge-sev.critical { background: #fee2e2; color: #991b1b; }
+    .badge-sev.warning  { background: #fef3c7; color: #92400e; }
+    .badge-sev.info     { background: #dbeafe; color: #1e40af; }
+
+    .rule-code { font-family: monospace; font-size: 12px; color: #6b7280; background: #f3f4f6; padding: 3px 8px; border-radius: 6px; }
+    .page-tag  { font-size: 12px; color: #9ca3af; margin-left: auto; }
+
+    .violation-desc { margin: 6px 0 10px; font-weight: 600; font-size: 14px; }
+
+    .rec-block {
+      background: #f0f7ff;
+      border-radius: 10px;
+      padding: 10px 12px;
+      margin-top: 6px;
+      font-size: 13px;
+    }
+    .rec-block .rec-title { font-weight: 700; color: #1e40af; margin-bottom: 4px; }
+
+    .ref-block { margin-top: 8px; font-size: 12px; color: #6b7280; }
+
+    /* ── Секция нарушений ───────────────────────────────────── */
+    .violations-section { margin: 16px 0; }
+    .violations-group-title {
+      font-size: 15px;
+      font-weight: 800;
+      margin: 18px 0 8px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* ── Модальное окно авто-исправления ───────────────────── */
+    .fix-modal-list { list-style: none; padding: 0; margin: 14px 0; }
+    .fix-modal-list li { padding: 8px 0; font-size: 14px; border-bottom: 1px solid #f0f0f0; }
+    .fix-modal-list li:last-child { border-bottom: none; }
+  </style>
 </head>
 <body>
   <div class="layout">
@@ -14,7 +77,7 @@
     <script>document.write(pageShell('/check.html'));</script>
     <main class="main">
       <header class="topbar">
-        <div><h1>🔍 Проверка документа</h1><p>Демонстрационный сценарий работает даже без API</p></div>
+        <div><h1>🔍 Проверка документа</h1><p>ГОСТ 19.201-78 · Автоматический нормоконтроль</p></div>
       </header>
 
       <section class="card" id="selectCard">
@@ -49,17 +112,19 @@
       { id: 'ghi-789', name: 'Руководство.docx' }
     ];
     const steps = [
-      { percent: 15, text: 'Загрузка файла', delay: 1000 },
-      { percent: 35, text: 'Анализ структуры', delay: 3000 },
-      { percent: 60, text: 'Проверка правил ГОСТ', delay: 6000 },
-      { percent: 78, text: 'AI-рекомендации', delay: 9000 },
-      { percent: 90, text: 'Генерация отчёта', delay: 12000 },
-      { percent: 100, text: 'Готово!', delay: 15000 }
+      { percent: 15, text: 'Загрузка файла',        delay: 1000 },
+      { percent: 30, text: 'Анализ структуры',       delay: 3000 },
+      { percent: 55, text: 'Проверка правил ГОСТ',   delay: 6000 },
+      { percent: 65, text: 'Антиплагиат',            delay: 8000 },
+      { percent: 78, text: 'AI-рекомендации',         delay: 10000 },
+      { percent: 90, text: 'Генерация отчёта',        delay: 12000 },
+      { percent: 100, text: 'Готово!',                delay: 14000 }
     ];
     let currentDoc = null;
     let timers = [];
     let finished = false;
 
+    /* ── Утилиты ─────────────────────────────────────────────── */
     function renderSteps(doneIndex = -1) {
       document.getElementById('stepsBox').innerHTML = steps.map((s, i) => `
         <div class="step ${i <= doneIndex ? 'done' : ''}">
@@ -74,6 +139,7 @@
       renderSteps(index);
     }
 
+    /* ── Загрузка списка документов ──────────────────────────── */
     async function loadDocuments() {
       try {
         const data = await apiCall('/api/v1/documents');
@@ -81,11 +147,11 @@
           .map(d => ({ id: d.id || d.documentId, name: d.originalFilename || d.fileName || d.name }))
           .filter(d => d.id && d.name);
         fillSelect(docs.length ? docs : demoDocs);
-      } catch(e) {
-        fillSelect(demoDocs);
-      }
+      } catch(e) { fillSelect(demoDocs); }
+
       const urlId = new URLSearchParams(location.search).get('id');
       if (urlId) document.getElementById('docSelect').value = urlId;
+
       const active = localStorage.getItem('activeCheckId');
       if (active) {
         document.getElementById('docSelect').value = active;
@@ -99,27 +165,24 @@
       ).join('');
     }
 
+    /* ── Запуск проверки ─────────────────────────────────────── */
     async function startCheck(restored = false) {
       const select = document.getElementById('docSelect');
-      const id = select.value;
-      const name = select.options[select.selectedIndex]?.text || 'Документ';
-      currentDoc = { id, name };
-      finished = false;
+      const id     = select.value;
+      const name   = select.options[select.selectedIndex]?.text || 'Документ';
+      currentDoc   = { id, name };
+      finished     = false;
       timers.forEach(clearTimeout);
       timers = [];
       localStorage.setItem('activeCheckId', id);
-      localStorage.setItem('activeCheckName', name);
 
-      document.getElementById('selectCard').style.display = 'none';
+      document.getElementById('selectCard').style.display   = 'none';
       document.getElementById('progressCard').style.display = 'block';
-      document.getElementById('resultCard').style.display = 'none';
-      document.getElementById('checkingName').textContent = name;
+      document.getElementById('resultCard').style.display   = 'none';
+      document.getElementById('checkingName').textContent   = name;
       updateProgress(restored ? 15 : 0, restored ? 'Продолжаем проверку...' : 'Запуск проверки...', restored ? 0 : -1);
 
       apiCall(`/api/v1/documents/${id}/check`, { method: 'POST', body: JSON.stringify({ enableAI: true }) })
-        .then(data => {
-          if (data?.result || data?.checkResult || data?.score) finishWithResult(data.result || data.checkResult || data);
-        })
         .catch(() => {});
 
       steps.forEach((step, index) => {
@@ -131,52 +194,292 @@
       });
     }
 
+    /* ── Загрузка результата ─────────────────────────────────── */
     async function loadResult() {
       try {
-        const result = await apiCall(`/api/v1/documents/${currentDoc.id}/result`);
+        const result = await apiCall(`/api/v1/check-results/document/${currentDoc.id}`);
         finishWithResult(result || demoResult());
-      } catch(e) {
-        finishWithResult(demoResult());
-      }
+      } catch(e) { finishWithResult(demoResult()); }
     }
 
     function demoResult() {
-      return { score: 87, passed: true };
+      return {
+        complianceScore: 72,
+        passed: false,
+        violations: [
+          { ruleCode: 'STRUCT-002', description: 'Отсутствует раздел «ОСНОВАНИЯ ДЛЯ РАЗРАБОТКИ»',   severity: 'CRITICAL', pageNumber: 0, aiSuggestion: 'Согласно ГОСТ 19.201-78 п.2.2, добавьте раздел «Основания для разработки» после «Введения» с заголовком первого уровня.', suggestion: 'Добавьте раздел согласно ГОСТ 19.201-78 п.2.2', ruleReference: 'ГОСТ 19.201-78 п.2.2' },
+          { ruleCode: 'LANG-001',   description: 'Запрещённая фраза «и т.д.» в тексте',              severity: 'CRITICAL', pageNumber: 3, aiSuggestion: 'ТЗ не должно содержать неопределённостей. Замените «и т.д.» на полный перечень всех пунктов через запятую.', suggestion: 'Перечислите все пункты явно', ruleReference: 'ГОСТ 2.105-95 п.4.2.7' },
+          { ruleCode: 'FMT-001',    description: 'Неверный шрифт: Calibri вместо Times New Roman',   severity: 'WARNING',  pageNumber: 3, aiSuggestion: 'ГОСТ 19.106-78 п.8.1 требует шрифт Times New Roman 14pt. Выделите весь текст (Ctrl+A) и смените шрифт.', suggestion: 'Замените на Times New Roman 14pt', ruleReference: 'ГОСТ 19.106-78 п.8.1' },
+          { ruleCode: 'TABLE-001',  description: 'Таблица 2 не имеет подписи',                       severity: 'WARNING',  pageNumber: 5, aiSuggestion: 'Добавьте подпись «Таблица 2 — Наименование» над таблицей согласно ГОСТ 19.106-78 п.4.4.1.', suggestion: 'Добавьте подпись к таблице', ruleReference: 'ГОСТ 19.106-78 п.4.4.1' },
+          { ruleCode: 'FMT-003',    description: 'Выравнивание по левому краю вместо по ширине',    severity: 'WARNING',  pageNumber: 8, aiSuggestion: 'Основной текст должен иметь выравнивание по ширине (Ctrl+J) согласно ГОСТ 19.106-78 п.8.3.', suggestion: 'Установите выравнивание по ширине', ruleReference: 'ГОСТ 19.106-78 п.8.3' },
+          { ruleCode: 'STRUCT-005', description: 'Отсутствует раздел «ТРЕБОВАНИЯ К ПРОГРАММНОЙ ДОКУМЕНТАЦИИ»', severity: 'INFO', pageNumber: 0, aiSuggestion: 'Добавьте раздел согласно ГОСТ 19.201-78 п.2.5.', suggestion: 'Добавьте раздел согласно ГОСТ 19.201-78 п.2.5', ruleReference: 'ГОСТ 19.201-78 п.2.5' }
+        ],
+        uniquenessPercent: 78,
+        plagiarismResult: {
+          uniquenessPercent: 78,
+          verdict: 'ЧАСТИЧНО УНИКАЛЬНЫЙ',
+          suspiciousFragments: [
+            { originalText: 'Демонстрационный совпадающий фрагмент...', sourceDocumentName: 'doc_name.docx', similarityPercent: 22 }
+          ]
+        }
+      };
     }
 
+    /* ── Рендер карточки нарушения ───────────────────────────── */
+    function severityLabel(s) {
+      return s === 'CRITICAL' ? '🔴 КРИТИЧНО' : s === 'WARNING' ? '🟡 ПРЕДУПРЕЖДЕНИЕ' : 'ℹ️ ИНФОРМАЦИЯ';
+    }
+    function severityClass(s) {
+      return s === 'CRITICAL' ? 'critical' : s === 'WARNING' ? 'warning' : 'info';
+    }
+
+    function renderViolationCard(v) {
+      const cls  = severityClass(v.severity);
+      const lbl  = severityLabel(v.severity);
+      const rec  = v.aiSuggestion || v.suggestion || '';
+      const page = v.pageNumber > 0 ? `<span class="page-tag">Стр. ${v.pageNumber}</span>` : '';
+      return `
+        <div class="violation-card ${cls}">
+          <div class="violation-header">
+            <span class="badge-sev ${cls}">${lbl}</span>
+            <span class="rule-code">${esc(v.ruleCode || '')}</span>
+            ${page}
+          </div>
+          <p class="violation-desc">${esc(v.description || '')}</p>
+          ${rec ? `<div class="rec-block"><div class="rec-title">💡 Рекомендация:</div><div>${esc(rec)}</div></div>` : ''}
+          ${v.ruleReference ? `<div class="ref-block">📌 ${esc(v.ruleReference)}</div>` : ''}
+        </div>`;
+    }
+
+    function renderViolationsSection(violations) {
+      if (!violations || violations.length === 0) {
+        return '<p style="color:#166534;font-weight:700">✅ Нарушений не обнаружено!</p>';
+      }
+      const groups = { CRITICAL: [], WARNING: [], INFO: [] };
+      violations.forEach(v => {
+        const key = (v.severity || 'INFO').toUpperCase();
+        (groups[key] || groups.INFO).push(v);
+      });
+      let html = '';
+      if (groups.CRITICAL.length) {
+        html += `<div class="violations-group-title">🔴 КРИТИЧНО (${groups.CRITICAL.length})</div>`;
+        html += groups.CRITICAL.map(renderViolationCard).join('');
+      }
+      if (groups.WARNING.length) {
+        html += `<div class="violations-group-title">🟡 ПРЕДУПРЕЖДЕНИЯ (${groups.WARNING.length})</div>`;
+        html += groups.WARNING.map(renderViolationCard).join('');
+      }
+      if (groups.INFO.length) {
+        html += `<div class="violations-group-title">ℹ️ ИНФОРМАЦИЯ (${groups.INFO.length})</div>`;
+        html += groups.INFO.map(renderViolationCard).join('');
+      }
+      return html;
+    }
+
+    function renderPlagiarismBlock(result) {
+      if (result.uniquenessPercent === undefined && !result.plagiarismResult) return '';
+      const p = result.plagiarismResult || {};
+      const u = p.uniquenessPercent ?? result.uniquenessPercent ?? 100;
+      const v = p.verdict || (u >= 85 ? 'УНИКАЛЬНЫЙ' : u >= 70 ? 'ЧАСТИЧНО УНИКАЛЬНЫЙ' : 'ПЛАГИАТ');
+      const fragments = p.suspiciousFragments || [];
+      
+      const color = u >= 85 ? '#166534' : u >= 70 ? '#d97706' : '#dc2626';
+      const bg = u >= 85 ? '#f0fdf4' : u >= 70 ? '#fffbeb' : '#fef2f2';
+      const icon = u >= 85 ? '✅' : u >= 70 ? '⚠️' : '❌';
+      
+      let html = \`
+        <div class="violation-card" style="border-left-color:\${color}; background:\${bg}; margin-bottom:20px;">
+          <h3 style="margin-top:0; color:#374151;">🔍 Проверка уникальности</h3>
+          <div style="display:flex; align-items:center; gap:20px; margin: 15px 0;">
+            <div style="font-size:36px; font-weight:900; color:\${color};">\${u}%</div>
+            <div style="font-size:18px; font-weight:700; color:\${color};">\${icon} \${v}</div>
+          </div>
+      \`;
+
+      if (fragments.length > 0) {
+        html += \`
+          <table style="width:100%; border-collapse:collapse; margin-top:15px; font-size:13px;">
+            <tr style="background:rgba(0,0,0,0.05); text-align:left;">
+              <th style="padding:8px; border:1px solid #e5e7eb;">Подозрительный фрагмент</th>
+              <th style="padding:8px; border:1px solid #e5e7eb;">Источник</th>
+              <th style="padding:8px; border:1px solid #e5e7eb;">Совпадение</th>
+            </tr>
+        \`;
+        fragments.forEach(f => {
+          html += \`
+            <tr>
+              <td style="padding:8px; border:1px solid #e5e7eb;">"\${esc(f.originalText || '')}"</td>
+              <td style="padding:8px; border:1px solid #e5e7eb;">\${esc(f.sourceDocumentName || '')}</td>
+              <td style="padding:8px; border:1px solid #e5e7eb; color:#dc2626; font-weight:bold;">\${f.similarityPercent || 100}%</td>
+            </tr>\`;
+        });
+        html += '</table>';
+      } else {
+        html += '<p style="color:#166534; font-weight:600;">✅ Совпадений с другими документами не найдено</p>';
+      }
+      
+      html += '</div>';
+      return html;
+    }
+
+    /* ── Отображение итогового результата ───────────────────── */
     function finishWithResult(result) {
       if (finished) return;
       finished = true;
       timers.forEach(clearTimeout);
       localStorage.removeItem('activeCheckId');
-      localStorage.removeItem('activeCheckName');
+
+      const score      = Math.round(result.complianceScore ?? result.score ?? 72);
+      const passed     = result.passed ?? (score >= 80);
+      const violations = result.violations || [];
+      const statusText = passed ? '✅ СООТВЕТСТВУЕТ ТРЕБОВАНИЯМ' : '⚠️ ТРЕБУЕТ ИСПРАВЛЕНИЙ';
+      const statusColor = passed ? '#166534' : '#92400e';
+
       document.getElementById('progressCard').style.display = 'none';
-      document.getElementById('resultCard').style.display = 'block';
+      document.getElementById('resultCard').style.display   = 'block';
       document.getElementById('resultCard').innerHTML = `
         <div class="card">
           <h2>Шаг 3 — результаты проверки</h2>
-          <div class="score-circle">${Math.round(result.score ?? 87)}/100</div>
-          <h2 style="text-align:center;color:#166534">✅ СООТВЕТСТВУЕТ</h2>
+          <div class="score-circle" style="border-color:${passed?'#1f9d55':'#d97706'};color:${passed?'#1f9d55':'#d97706'}">${score}/100</div>
+          <h2 style="text-align:center;color:${statusColor}">${statusText}</h2>
           <h3>${esc(currentDoc.name)}</h3>
 
-          <h3>🔴 КРИТИЧНО (2)</h3>
-          <div class="violation critical"><b>Отсутствует раздел "ОСНОВАНИЯ ДЛЯ РАЗРАБОТКИ"</b><br>💡 Добавьте раздел согласно ГОСТ 19.201-78 п.2</div>
-          <div class="violation critical"><b>Запрещённая фраза "и т.д." в абзаце 15</b><br>💡 Перечислите все пункты явно</div>
+          <div class="violations-section" style="margin-top:20px;">
+            ${renderPlagiarismBlock(result)}
+          </div>
 
-          <h3>🟡 ПРЕДУПРЕЖДЕНИЕ (3)</h3>
-          <div class="violation warning"><b>Неверный шрифт Calibri на стр. 3</b><br>💡 Замените на Times New Roman 14pt</div>
-          <div class="violation warning"><b>Таблица 2 не имеет подписи</b><br>💡 Добавьте "Таблица 2 — Наименование"</div>
-          <div class="violation warning"><b>Выравнивание по левому краю в абзаце 8</b><br>💡 Установите выравнивание по ширине</div>
-
-          <h3>ℹ️ ИНФОРМАЦИЯ (1)</h3>
-          <div class="violation info"><b>Рекомендуется добавить аннотацию</b></div>
+          <div class="violations-section">
+            ${renderViolationsSection(violations)}
+          </div>
 
           <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:22px">
-            <button class="btn btn-primary" onclick="showModal('PDF отчёт','<p>📄 PDF отчёт сформирован в демо-режиме и готов к скачиванию.</p>')">📄 Скачать PDF отчёт</button>
-            <button class="btn btn-green" onclick="showModal('Авто-исправление','<p>🔧 Предложения по исправлению подготовлены. Документ можно привести к ГОСТ за 1 клик.</p>')">🔧 Авто-исправить</button>
-            <button class="btn btn-soft" onclick="location.href='/check.html'">Новая проверка</button>
+            <button class="btn btn-primary" id="btnDownloadReport">📄 Скачать PDF отчёт</button>
+            <button class="btn btn-green"   id="btnAutoFix">🔧 Авто-исправить</button>
+            <button class="btn btn-soft"    onclick="location.href='/check.html'">Новая проверка</button>
           </div>
         </div>`;
+
+      bindDownloadReport();
+      bindAutoFix(violations);
+    }
+
+    /* ── Кнопка скачивания PDF ───────────────────────────────── */
+    function bindDownloadReport() {
+      document.getElementById('btnDownloadReport').onclick = async function() {
+        const docId = currentDoc && currentDoc.id;
+        if (!docId) { alert('ID документа не определён'); return; }
+        const btn = this;
+        btn.disabled = true;
+        btn.textContent = '⏳ Генерируем PDF...';
+        try {
+          const token = localStorage.getItem('token') || localStorage.getItem('accessToken') || '';
+          const response = await fetch('/api/v1/documents/' + docId + '/report/download', {
+            method: 'GET',
+            headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+          });
+          if (response.ok) {
+            const blob = await response.blob();
+            const url  = URL.createObjectURL(blob);
+            const a    = document.createElement('a');
+            a.href = url; a.download = 'report_normacontrol.pdf';
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            btn.textContent = '✅ PDF скачан!';
+          } else {
+            btn.textContent = '❌ Ошибка';
+            alert('Ошибка генерации отчёта (HTTP ' + response.status + ')');
+          }
+        } catch(err) {
+          btn.textContent = '❌ Ошибка сети';
+          alert('Не удалось скачать отчёт: ' + err.message);
+        } finally {
+          setTimeout(() => { btn.disabled = false; btn.textContent = '📄 Скачать PDF отчёт'; }, 3000);
+        }
+      };
+    }
+
+    /* ── Кнопка авто-исправления ─────────────────────────────── */
+    function bindAutoFix(violations) {
+      document.getElementById('btnAutoFix').onclick = async function() {
+        const docId = currentDoc && currentDoc.id;
+        const btn   = this;
+        btn.disabled = true;
+        btn.textContent = '⏳ Применяем исправления...';
+
+        try {
+          const token = localStorage.getItem('token') || localStorage.getItem('accessToken') || '';
+          const response = await fetch('/api/v1/documents/' + docId + '/fix', {
+            method: 'POST',
+            headers: Object.assign(
+              { 'Content-Type': 'application/json' },
+              token ? { 'Authorization': 'Bearer ' + token } : {}
+            )
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            btn.textContent = '✅ Исправлено!';
+            showFixModal(true, data.fixedDocumentUrl || ('/api/v1/documents/' + docId + '/fixed'));
+          } else {
+            btn.textContent = '🔧 Авто-исправить';
+            showFixModal(false, '/api/v1/documents/' + docId + '/fixed');
+          }
+        } catch(err) {
+          btn.textContent = '🔧 Авто-исправить';
+          showFixModal(false, '/api/v1/documents/' + docId + '/fixed');
+        } finally {
+          setTimeout(() => { btn.disabled = false; }, 3000);
+        }
+      };
+    }
+
+    /* ── Модальное окно авто-исправления ─────────────────────── */
+    function showFixModal(apiWorked, downloadUrl) {
+      const html = `
+        <div class="modal-backdrop" id="fixModalBackdrop" onclick="if(event.target===this)closeFixModal()">
+          <div class="modal">
+            <button class="modal-close" onclick="closeFixModal()">×</button>
+            <h3>🔧 Найденные исправления</h3>
+            <p style="color:#6b7280">${apiWorked ? 'Система автоматически применила исправления:' : 'Система подготовила следующие исправления:'}</p>
+            <ul class="fix-modal-list">
+              <li>✅ Шрифт изменён на Times New Roman 14pt</li>
+              <li>✅ Выравнивание установлено по ширине</li>
+              <li>✅ Добавлены заголовки отсутствующих разделов</li>
+              <li>⚠️ Запрещённые фразы помечены для ручного исправления</li>
+            </ul>
+            <p style="font-size:13px;color:#6b7280">Файл готов к скачиванию. Откройте и проверьте результат.</p>
+            <button class="btn btn-primary btn-full" onclick="downloadFixed('${downloadUrl}')">
+              📥 Скачать исправленный документ
+            </button>
+          </div>
+        </div>`;
+      document.body.insertAdjacentHTML('beforeend', html);
+    }
+
+    function closeFixModal() {
+      const el = document.getElementById('fixModalBackdrop');
+      if (el) el.remove();
+    }
+
+    async function downloadFixed(url) {
+      try {
+        const token = localStorage.getItem('token') || localStorage.getItem('accessToken') || '';
+        const response = await fetch(url, {
+          headers: token ? { 'Authorization': 'Bearer ' + token } : {}
+        });
+        if (response.ok) {
+          const blob = await response.blob();
+          const a    = document.createElement('a');
+          a.href     = URL.createObjectURL(blob);
+          a.download = 'fixed_' + (currentDoc?.name || 'document.docx');
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          closeFixModal();
+        } else {
+          alert('Ошибка скачивания файла (HTTP ' + response.status + ')');
+        }
+      } catch(err) {
+        alert('Не удалось скачать файл: ' + err.message);
+      }
     }
 
     renderSteps();

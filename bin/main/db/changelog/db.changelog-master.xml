@@ -16,5 +16,7 @@
     <include file="db/changelog/V7__create_check_strategy_settings.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/V8__create_refresh_tokens.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/V9__alter_audit_logs_add_user_agent.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/V10__create_document_hashes.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/V11__add_plagiarism_to_check_results.sql" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>

@@ -24,6 +24,12 @@ import org.springframework.web.multipart.MultipartFile;
 import ru.normacontrol.application.dto.response.DocumentResponse;
 import ru.normacontrol.application.usecase.CheckDocumentUseCase;
 import ru.normacontrol.application.usecase.DocumentUseCase;
+import ru.normacontrol.domain.entity.CheckResult;
+import ru.normacontrol.domain.entity.Document;
+import ru.normacontrol.domain.repository.CheckResultRepository;
+import ru.normacontrol.domain.repository.ReadDocumentRepository;
+import ru.normacontrol.infrastructure.minio.MinioStorageService;
+import ru.normacontrol.infrastructure.report.ReportGenerator;
 
 import java.util.List;
 import java.util.Map;
@@ -39,6 +45,10 @@ public class DocumentController {
 
     private final DocumentUseCase documentUseCase;
     private final CheckDocumentUseCase checkDocumentUseCase;
+    private final CheckResultRepository checkResultRepository;
+    private final ReadDocumentRepository readDocumentRepository;
+    private final MinioStorageService storageService;
+    private final ReportGenerator reportGenerator;
 
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Загрузить документ")
@@ -105,10 +115,14 @@ public class DocumentController {
         }
     }
 
+    /**
+     * Старый эндпоинт (обратная совместимость) — скачать PDF из MinIO.
+     * При отсутствии файла в MinIO возвращает 404.
+     */
     @GetMapping("/{documentId}/report")
-    @Operation(summary = "Скачать PDF-отчёт")
+    @Operation(summary = "Скачать PDF-отчёт (только из MinIO)")
     @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
-    public ResponseEntity<?> downloadReport(@PathVariable UUID documentId, Authentication authentication) {
+    public ResponseEntity<?> downloadReportLegacy(@PathVariable UUID documentId, Authentication authentication) {
         try {
             UUID userId = UUID.fromString(authentication.getName());
             byte[] payload = documentUseCase.downloadLatestReport(documentId, userId);
@@ -120,8 +134,61 @@ public class DocumentController {
                     .contentType(MediaType.APPLICATION_PDF)
                     .body(payload);
         } catch (Exception e) {
-            log.error("Ошибка: {}", e.getMessage(), e);
+            log.warn("Файл отчёта не найден в MinIO для документа {}: {}", documentId, e.getMessage());
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "PDF-отчёт ещё не готов"));
+        }
+    }
+
+    /**
+     * Новый эндпоинт с полным fallback:
+     * 1. Берём последний CheckResult документа.
+     * 2. Пробуем скачать готовый PDF из MinIO.
+     * 3. Если MinIO недоступен — генерируем PDF прямо в памяти через iText 7.
+     * 4. Возвращаем байты с заголовком Content-Disposition: attachment.
+     */
+    @GetMapping("/{documentId}/report/download")
+    @Operation(summary = "Скачать PDF-отчёт (с автоматической генерацией)")
+    @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
+    public ResponseEntity<byte[]> downloadReport(
+            @PathVariable UUID documentId,
+            Authentication authentication) {
+        try {
+            UUID userId = UUID.fromString(authentication.getName());
+
+            // Находим последний результат проверки
+            CheckResult result = checkResultRepository.findLatestByDocumentId(documentId)
+                    .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException(
+                            "Результат проверки не найден: " + documentId));
+
+            // Находим исходный документ (для метаданных в PDF)
+            Document sourceDocument = readDocumentRepository.findById(documentId).orElse(null);
+
+            byte[] pdfBytes;
+
+            // Шаг 1: пробуем скачать готовый PDF из MinIO
+            if (result.getReportStoragePath() != null && !result.getReportStoragePath().isBlank()) {
+                try {
+                    pdfBytes = storageService.downloadBytes(result.getReportStoragePath());
+                    log.info("PDF отчёт скачан из MinIO: {}", result.getReportStoragePath());
+                } catch (Exception minioEx) {
+                    log.warn("Файл отчёта не найден в MinIO ({}), генерируем в памяти...", minioEx.getMessage());
+                    pdfBytes = reportGenerator.generatePdfBytes(result, sourceDocument);
+                }
+            } else {
+                // Шаг 2: путь не задан — генерируем сразу в памяти
+                log.info("reportStoragePath не задан — генерируем PDF в памяти для документа {}", documentId);
+                pdfBytes = reportGenerator.generatePdfBytes(result, sourceDocument);
+            }
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=\"report_normacontrol_" + documentId + ".pdf\"")
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .body(pdfBytes);
+
+        } catch (Exception e) {
+            log.error("Ошибка генерации/скачивания отчёта для документа {}: {}", documentId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
 

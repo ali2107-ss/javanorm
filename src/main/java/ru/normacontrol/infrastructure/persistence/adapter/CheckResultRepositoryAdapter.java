@@ -59,6 +59,8 @@ public class CheckResultRepositoryAdapter implements CheckResultRepository {
                 .reportStoragePath(checkResult.getReportStoragePath())
                 .processingTimeMs(checkResult.getProcessingTimeMs())
                 .checkedAt(checkResult.getCheckedAt())
+                .uniquenessPercent(checkResult.getUniquenessPercent())
+                .plagiarismResult(serializePlagiarism(checkResult.getPlagiarismResult()))
                 .build();
 
         entity.setViolations(checkResult.getViolations().stream()
@@ -106,8 +108,30 @@ public class CheckResultRepositoryAdapter implements CheckResultRepository {
                 .ruleSetVersion(entity.getRuleSetVersion())
                 .processingTimeMs(entity.getProcessingTimeMs())
                 .reportStoragePath(entity.getReportStoragePath())
+                .uniquenessPercent(entity.getUniquenessPercent())
+                .plagiarismResult(parsePlagiarism(entity.getPlagiarismResult()))
                 .violations(violations)
                 .build()
                 .evaluate();
+    }
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
+    private String serializePlagiarism(ru.normacontrol.infrastructure.plagiarism.PlagiarismResult result) {
+        if (result == null) return null;
+        try {
+            return mapper.writeValueAsString(result);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private ru.normacontrol.infrastructure.plagiarism.PlagiarismResult parsePlagiarism(String json) {
+        if (json == null || json.isBlank()) return null;
+        try {
+            return mapper.readValue(json, ru.normacontrol.infrastructure.plagiarism.PlagiarismResult.class);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

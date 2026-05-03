@@ -132,6 +132,28 @@ public class DataInitializer implements CommandLineRunner {
         document.setUpdatedAt(LocalDateTime.now());
         documentRepository.save(document);
 
+        String docName = document.getOriginalFileName() != null ? document.getOriginalFileName() : "";
+        int uniquenessPercent = docName.contains("ТЗ") ? 96 :
+                                docName.contains("Черновик") ? 45 : 78;
+                                
+        String verdict = uniquenessPercent >= 85 ? "УНИКАЛЬНЫЙ" :
+                         uniquenessPercent >= 70 ? "ЧАСТИЧНО УНИКАЛЬНЫЙ" : "ПЛАГИАТ";
+
+        ru.normacontrol.infrastructure.plagiarism.PlagiarismResult plagResult = 
+            new ru.normacontrol.infrastructure.plagiarism.PlagiarismResult(
+                uniquenessPercent, 100 - uniquenessPercent, verdict,
+                uniquenessPercent == 100 ? List.of() : List.of(
+                    new ru.normacontrol.infrastructure.plagiarism.SimilarFragment(
+                        "Демонстрационный совпадающий фрагмент текста из документа...",
+                        "Исходный текст из другого документа...",
+                        UUID.randomUUID(),
+                        "doc_name.docx",
+                        100 - uniquenessPercent
+                    )
+                ),
+                List.of()
+        );
+
         CheckResultJpaEntity result = CheckResultJpaEntity.builder()
                 .id(UUID.randomUUID())
                 .document(document)
@@ -142,6 +164,9 @@ public class DataInitializer implements CommandLineRunner {
                 .processingTimeMs(14500L)
                 .checkedAt(LocalDateTime.now().minusMinutes(30))
                 .reportStoragePath("demo/report_" + document.getId() + ".pdf")
+                .uniquenessPercent(uniquenessPercent)
+                // Для демо инициализируем String JSON
+                .plagiarismResult(serializePlagiarismResult(plagResult))
                 .build();
 
         List<ViolationJpaEntity> violations = new ArrayList<>();
@@ -205,6 +230,16 @@ public class DataInitializer implements CommandLineRunner {
                     true,
                     Map.of("demo", true, "sequence", i + 1)
             );
+        }
+    }
+
+    private static final com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+
+    private String serializePlagiarismResult(ru.normacontrol.infrastructure.plagiarism.PlagiarismResult result) {
+        try {
+            return mapper.writeValueAsString(result);
+        } catch (Exception e) {
+            return null;
         }
     }
 }

@@ -19,9 +19,66 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Сервис генерации AI-рекомендаций для нарушений ГОСТ.
+ * <p>
+ * Стратегия выбора рекомендации (в порядке приоритета):
+ * <ol>
+ *   <li>Redis-кэш (TTL 24 ч.)</li>
+ *   <li>Anthropic Claude API — если {@code ANTHROPIC_API_KEY} задан и не является заглушкой</li>
+ *   <li>Умные статические рекомендации по {@code ruleCode}</li>
+ *   <li>Поле {@code violation.suggestion} из самого нарушения</li>
+ * </ol>
+ */
 @Slf4j
 @Service
 public class AiRecommendationService {
+
+    // ── Умные статические рекомендации (fallback без API-ключа) ─────────────
+
+    private static final Map<String, String> SMART_RECOMMENDATIONS = Map.of(
+            "STRUCTURE.MISSING_SECTION",
+            "Согласно ГОСТ 19.201-78 раздел 2, данный раздел является обязательным. " +
+            "Добавьте его после раздела «Введение» с правильной нумерацией и заголовком первого уровня.",
+
+            "STRUCT",
+            "Согласно ГОСТ 19.201-78 раздел 2, данный раздел является обязательным. " +
+            "Добавьте его после раздела «Введение» с правильной нумерацией и заголовком первого уровня.",
+
+            "FORMAT.WRONG_FONT",
+            "ГОСТ 19.106-78 п.8.1 требует использование шрифта Times New Roman размером 14pt " +
+            "для основного текста. Выделите весь текст (Ctrl+A) и смените шрифт через меню Главная → Шрифт.",
+
+            "FMT-001",
+            "ГОСТ 19.106-78 п.8.1 требует использование шрифта Times New Roman размером 14pt " +
+            "для основного текста. Выделите весь текст (Ctrl+A) и смените шрифт через меню Главная → Шрифт.",
+
+            "FORMAT.WRONG_ALIGNMENT",
+            "Основной текст должен иметь выравнивание по ширине согласно ГОСТ 19.106-78 п.8.3. " +
+            "В Word: выделите текст → нажмите Ctrl+J или выберите «Выровнять по ширине».",
+
+            "FMT-003",
+            "Основной текст должен иметь выравнивание по ширине согласно ГОСТ 19.106-78 п.8.3. " +
+            "В Word: выделите текст → нажмите Ctrl+J или выберите «Выровнять по ширине».",
+
+            "LANGUAGE.FORBIDDEN_PHRASE",
+            "ТЗ не должно содержать неопределённостей согласно ГОСТ 19.201-78. " +
+            "Замените «и т.д.» / «и т.п.» на полный перечень всех пунктов через запятую.",
+
+            "LANG",
+            "ТЗ не должно содержать неопределённостей согласно ГОСТ 19.201-78. " +
+            "Замените «и т.д.» / «и т.п.» на полный перечень всех пунктов через запятую.",
+
+            "TABLE.MISSING_CAPTION",
+            "Каждая таблица должна иметь подпись формата «Таблица N — Наименование» " +
+            "над таблицей согласно ГОСТ 19.106-78 п.4.4.1.",
+
+            "FMT-002",
+            "ГОСТ 19.106-78 п.8.1 требует кегль 14pt для основного текста. " +
+            "Выделите весь текст (Ctrl+A) и установите размер 14pt через меню Главная → Размер шрифта."
+    );
+
+    // ── Зависимости ──────────────────────────────────────────────────────────
 
     private final WebClient webClient;
     private final StringRedisTemplate redisTemplate;
@@ -29,7 +86,7 @@ public class AiRecommendationService {
     private final Bucket bucket;
     private final ObjectMapper objectMapper;
 
-    @Value("${ai.anthropic.api-key:default_key}")
+    @Value("${ai.anthropic.api-key:}")
     private String apiKey;
 
     public AiRecommendationService(
@@ -47,69 +104,172 @@ public class AiRecommendationService {
         this.bucket = Bucket.builder().addLimit(limit).build();
     }
 
+    // ── Публичный API ─────────────────────────────────────────────────────────
+
+    /**
+     * Генерировать рекомендацию для нарушения.
+     *
+     * @param violation        найденное нарушение
+     * @param documentFragment фрагмент документа (может быть {@code null})
+     * @return рекомендация в виде строки, никогда не {@code null}
+     */
     public CompletableFuture<String> generateRecommendation(Violation violation, String documentFragment) {
-        String ruleCode = violation.getRuleCode();
-        String description = violation.getDescription();
+        String ruleCode = violation.getRuleCode() != null ? violation.getRuleCode() : "";
 
         // Кэш в Redis: ключ = MD5(ruleCode + fragment)
-        String rawKey = ruleCode + ":" + documentFragment;
+        String rawKey = ruleCode + ":" + (documentFragment != null ? documentFragment : "");
         String cacheKey = "ai:recommendation:" + DigestUtils.md5DigestAsHex(rawKey.getBytes());
 
         return CompletableFuture.supplyAsync(() -> {
             try {
-                // Check cache first
-                String cached = redisTemplate.opsForValue().get(cacheKey);
-                if (cached != null) {
-                    meterRegistry.counter("ai.recommendations.cache.hit").increment();
-                    return cached;
+                // ── 1. Redis-кэш ──────────────────────────────────────────────
+                try {
+                    String cached = redisTemplate.opsForValue().get(cacheKey);
+                    if (cached != null && !cached.isBlank()) {
+                        meterRegistry.counter("ai.recommendations.cache.hit").increment();
+                        log.debug("AI рекомендация из кэша для {}", ruleCode);
+                        return cached;
+                    }
+                } catch (Exception cacheEx) {
+                    log.warn("Redis недоступен: {}", cacheEx.getMessage());
                 }
 
-                // Check rate limit
-                if (!bucket.tryConsume(1)) {
-                    log.warn("Rate limit exceeded for AI recommendations. Using fallback.");
-                    return violation.getSuggestion();
-                }
-
-                String prompt = String.format(
-                        "Ты эксперт по ГОСТ 19.201-78. Найдено нарушение: %s. Описание: %s. Фрагмент: %s. Дай конкретную рекомендацию на русском (2-3 предложения) как именно исправить это нарушение.",
-                        ruleCode, description, documentFragment != null ? documentFragment : "не указан"
-                );
-
-                Map<String, Object> requestBody = Map.of(
-                        "model", "claude-3-haiku-20240307",
-                        "max_tokens", 200,
-                        "messages", new Object[]{
-                                Map.of("role", "user", "content", prompt)
+                // ── 2. Anthropic Claude API (только если ключ реальный) ───────
+                if (isRealApiKey()) {
+                    try {
+                        String apiResult = callAnthropicApi(violation, documentFragment);
+                        if (apiResult != null && !apiResult.isBlank()) {
+                            cacheResult(cacheKey, apiResult);
+                            meterRegistry.counter("ai.recommendations.generated").increment();
+                            return apiResult;
                         }
-                );
+                    } catch (Exception apiEx) {
+                        log.warn("Anthropic API недоступен ({}), переключаемся на статические рекомендации",
+                                apiEx.getMessage());
+                    }
+                } else {
+                    log.debug("ANTHROPIC_API_KEY не задан — используем статические рекомендации для {}", ruleCode);
+                }
 
-                Timer.Sample sample = Timer.start(meterRegistry);
+                // ── 3. Умные статические рекомендации ────────────────────────
+                String smart = findSmartRecommendation(ruleCode);
+                if (smart != null) {
+                    cacheResult(cacheKey, smart);
+                    meterRegistry.counter("ai.recommendations.static").increment();
+                    return smart;
+                }
 
-                String responseStr = webClient.post()
-                        .uri("/messages")
-                        .header("x-api-key", apiKey)
-                        .header("anthropic-version", "2023-06-01")
-                        .bodyValue(requestBody)
-                        .retrieve()
-                        .bodyToMono(String.class)
-                        .timeout(Duration.ofSeconds(5))
-                        .block();
-
-                sample.stop(meterRegistry.timer("ai.recommendations.latency"));
-
-                JsonNode root = objectMapper.readTree(responseStr);
-                String recommendation = root.path("content").get(0).path("text").asText();
-
-                // Save to cache with TTL = 24 hours
-                redisTemplate.opsForValue().set(cacheKey, recommendation, 24, TimeUnit.HOURS);
-                meterRegistry.counter("ai.recommendations.generated").increment();
-
-                return recommendation;
+                // ── 4. Fallback: suggestion из самого нарушения ───────────────
+                String fallback = violation.getSuggestion();
+                return fallback != null ? fallback : "Исправьте нарушение согласно ГОСТ 19.201-78.";
 
             } catch (Exception e) {
-                log.error("Failed to generate AI recommendation: {}", e.getMessage());
-                return violation.getSuggestion();
+                log.error("Ошибка генерации AI-рекомендации: {}", e.getMessage());
+                String fallback = violation.getSuggestion();
+                return fallback != null ? fallback : "Исправьте нарушение согласно ГОСТ 19.201-78.";
             }
         });
+    }
+
+    // ── Приватные методы ──────────────────────────────────────────────────────
+
+    /** Считается ли ключ «реальным» (не заглушкой и не пустым). */
+    private boolean isRealApiKey() {
+        return apiKey != null
+                && !apiKey.isBlank()
+                && !apiKey.equals("sk-ant-your-key-here")
+                && !apiKey.startsWith("default")
+                && apiKey.startsWith("sk-ant-");
+    }
+
+    /** Вызов Anthropic Claude API. */
+    private String callAnthropicApi(Violation violation, String documentFragment) {
+        if (!bucket.tryConsume(1)) {
+            log.warn("Rate limit exceeded for AI recommendations.");
+            return null;
+        }
+
+        String prompt = String.format(
+                "Ты эксперт по ГОСТ 19.201-78. Найдено нарушение: %s. Описание: %s. " +
+                "Фрагмент: %s. Дай конкретную рекомендацию на русском (2-3 предложения) " +
+                "как именно исправить это нарушение.",
+                violation.getRuleCode(),
+                violation.getDescription(),
+                documentFragment != null ? documentFragment : "не указан"
+        );
+
+        Map<String, Object> requestBody = Map.of(
+                "model", "claude-3-haiku-20240307",
+                "max_tokens", 200,
+                "messages", new Object[]{
+                        Map.of("role", "user", "content", prompt)
+                }
+        );
+
+        Timer.Sample sample = Timer.start(meterRegistry);
+
+        String responseStr = webClient.post()
+                .uri("/messages")
+                .header("x-api-key", apiKey)
+                .header("anthropic-version", "2023-06-01")
+                .bodyValue(requestBody)
+                .retrieve()
+                .bodyToMono(String.class)
+                .timeout(Duration.ofSeconds(5))
+                .block();
+
+        sample.stop(meterRegistry.timer("ai.recommendations.latency"));
+
+        if (responseStr == null) {
+            return null;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(responseStr);
+            return root.path("content").get(0).path("text").asText();
+        } catch (Exception e) {
+            log.error("Ошибка парсинга ответа от Anthropic: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * Найти статическую рекомендацию по части кода правила.
+     * Проверяет: точное совпадение, затем contains по каждому ключу.
+     */
+    private String findSmartRecommendation(String ruleCode) {
+        if (ruleCode == null || ruleCode.isBlank()) {
+            return null;
+        }
+        String upper = ruleCode.toUpperCase();
+
+        // Точное совпадение
+        if (SMART_RECOMMENDATIONS.containsKey(ruleCode)) {
+            return SMART_RECOMMENDATIONS.get(ruleCode);
+        }
+
+        // ruleCode содержит ключ карты (например, "GOST19.201.FMT-001" → "FMT-001")
+        for (Map.Entry<String, String> entry : SMART_RECOMMENDATIONS.entrySet()) {
+            if (upper.contains(entry.getKey().toUpperCase())) {
+                return entry.getValue();
+            }
+        }
+
+        // Ключ карты содержится в ruleCode (например, "STRUCT" в "GOST19.201.STRUCT-002")
+        for (Map.Entry<String, String> entry : SMART_RECOMMENDATIONS.entrySet()) {
+            if (upper.contains(entry.getKey().toUpperCase().replace(".", "").replace("-", ""))) {
+                return entry.getValue();
+            }
+        }
+
+        return null;
+    }
+
+    /** Сохранить результат в Redis с TTL 24 часа. */
+    private void cacheResult(String cacheKey, String value) {
+        try {
+            redisTemplate.opsForValue().set(cacheKey, value, 24, TimeUnit.HOURS);
+        } catch (Exception e) {
+            log.warn("Не удалось сохранить рекомендацию в Redis: {}", e.getMessage());
+        }
     }
 }

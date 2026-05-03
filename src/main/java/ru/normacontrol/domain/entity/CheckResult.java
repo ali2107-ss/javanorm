@@ -35,6 +35,8 @@ public class CheckResult {
     private String ruleSetVersion;
     private Long processingTimeMs;
     private String reportStoragePath;
+    private Integer uniquenessPercent;
+    private ru.normacontrol.infrastructure.plagiarism.PlagiarismResult plagiarismResult;
 
     @Builder.Default
     private List<Violation> violations = new ArrayList<>();

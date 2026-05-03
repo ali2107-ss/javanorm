@@ -58,6 +58,12 @@ public class CheckResultJpaEntity {
     @Column(name = "checked_at", nullable = false)
     private LocalDateTime checkedAt;
 
+    @Column(name = "uniqueness_percent")
+    private Integer uniquenessPercent;
+
+    @Column(name = "plagiarism_result", columnDefinition = "jsonb")
+    private String plagiarismResult;
+
     @OneToMany(mappedBy = "checkResult", cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private List<ViolationJpaEntity> violations = new ArrayList<>();

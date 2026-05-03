@@ -69,6 +69,53 @@ public class ReportGenerator {
     private final MeterRegistry meterRegistry;
 
     /**
+     * Generate a PDF report in memory and return raw bytes.
+     * <p>
+     * Does NOT write anything to disk or upload to MinIO.
+     * Safe to call even when MinIO is unavailable.
+     * </p>
+     *
+     * @param result         completed check result
+     * @param sourceDocument source document (may be {@code null} for demo results)
+     * @return PDF bytes ready to stream to the client
+     */
+    public byte[] generatePdfBytes(CheckResult result, ru.normacontrol.domain.entity.Document sourceDocument) {
+        ru.normacontrol.domain.entity.Document doc = sourceDocument != null ? sourceDocument : syntheticDocument(result);
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
+             PdfWriter writer = new PdfWriter(bos);
+             PdfDocument pdfDocument = new PdfDocument(writer);
+             Document pdf = new Document(pdfDocument, PageSize.A4)) {
+
+            PdfFont regular = loadFont(false);
+            PdfFont bold = loadFont(true);
+            pdf.setFont(regular);
+            pdf.setMargins(36, 36, 36, 36);
+
+            addCoverPage(pdfDocument, pdf, regular, bold, result, doc);
+            addSummaryPage(pdfDocument, pdf, regular, bold, result, doc);
+            addPlagiarismPage(pdfDocument, pdf, regular, bold, result);
+            addViolationsPages(pdf, regular, bold, result);
+            addSignaturePage(pdf, regular);
+            pdf.flush();
+
+            return bos.toByteArray();
+        } catch (Exception ex) {
+            log.error("Ошибка генерации PDF в памяти: {}", ex.getMessage(), ex);
+            throw new RuntimeException("Не удалось сформировать PDF-отчёт в памяти", ex);
+        }
+    }
+
+    /** Create a minimal synthetic document descriptor when the real one is not available. */
+    private ru.normacontrol.domain.entity.Document syntheticDocument(CheckResult result) {
+        return ru.normacontrol.domain.entity.Document.builder()
+                .id(result.getDocumentId() != null ? result.getDocumentId() : java.util.UUID.randomUUID())
+                .originalFilename("document_" + result.getDocumentId() + ".docx")
+                .contentType("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                .fileSize(0L)
+                .build();
+    }
+
+    /**
      * Generate a PDF report for a completed check and upload it to MinIO.
      *
      * @param result completed check result
@@ -92,6 +139,7 @@ public class ReportGenerator {
 
             addCoverPage(pdfDocument, pdf, regular, bold, result, sourceDocument);
             addSummaryPage(pdfDocument, pdf, regular, bold, result, sourceDocument);
+            addPlagiarismPage(pdfDocument, pdf, regular, bold, result);
             addViolationsPages(pdf, regular, bold, result);
             addSignaturePage(pdf, regular);
 
@@ -217,6 +265,67 @@ public class ReportGenerator {
         penalties.addCell(emptyCell());
         penalties.addCell(new Cell().add(new Paragraph(String.valueOf(safeScore(result))).setFont(bold)));
         pdf.add(penalties);
+    }
+
+    private void addPlagiarismPage(PdfDocument pdfDocument,
+                                   Document pdf,
+                                   PdfFont regular,
+                                   PdfFont bold,
+                                   CheckResult result) {
+        if (result.getPlagiarismResult() == null && result.getUniquenessPercent() == null) {
+            return; // Проверка не проводилась
+        }
+
+        ru.normacontrol.infrastructure.plagiarism.PlagiarismResult plag = result.getPlagiarismResult();
+        int uniqueness = plag != null ? plag.uniquenessPercent() : (result.getUniquenessPercent() != null ? result.getUniquenessPercent() : 100);
+        String verdict = plag != null ? plag.verdict() : (uniqueness >= 85 ? "УНИКАЛЬНЫЙ" : uniqueness >= 70 ? "ЧАСТИЧНО УНИКАЛЬНЫЙ" : "ПЛАГИАТ");
+
+        pdf.add(new AreaBreak(AreaBreakType.NEXT_PAGE));
+        pdf.add(new Paragraph("ПРОВЕРКА УНИКАЛЬНОСТИ ТЕКСТА")
+                .setFont(bold).setFontSize(20).setMarginBottom(20));
+
+        // Отрисовка индикатора уникальности
+        PdfPage page = pdfDocument.getLastPage();
+        PdfCanvas pdfCanvas = new PdfCanvas(page);
+        
+        float centerX = page.getPageSize().getWidth() / 2;
+        float centerY = page.getPageSize().getHeight() - 150;
+        
+        Color uniqColor = uniqueness >= 85 ? GREEN : uniqueness >= 70 ? YELLOW : RED;
+        
+        pdfCanvas.saveState()
+                .setFillColor(uniqColor)
+                .circle(centerX, centerY, 60)
+                .fill()
+                .restoreState();
+
+        Canvas scoreCanvas = new Canvas(pdfCanvas, page.getPageSize());
+        scoreCanvas.showTextAligned(new Paragraph(uniqueness + "%")
+                        .setFont(bold).setFontSize(48).setFontColor(ColorConstants.WHITE),
+                centerX, centerY - 10, TextAlignment.CENTER);
+        scoreCanvas.showTextAligned(new Paragraph(verdict)
+                        .setFont(bold).setFontSize(14).setFontColor(uniqColor),
+                centerX, centerY - 85, TextAlignment.CENTER);
+        scoreCanvas.close();
+
+        pdf.add(new Paragraph("\n\n\n\n\n\n\n")); // Отступ после индикатора
+
+        if (plag != null && plag.suspiciousFragments() != null && !plag.suspiciousFragments().isEmpty()) {
+            Table table = new Table(UnitValue.createPercentArray(new float[]{4, 2, 1})).useAllAvailableWidth();
+            table.addHeaderCell(new Cell().add(new Paragraph("Подозрительный фрагмент").setFont(bold)).setBackgroundColor(LIGHT_GRAY));
+            table.addHeaderCell(new Cell().add(new Paragraph("Источник").setFont(bold)).setBackgroundColor(LIGHT_GRAY));
+            table.addHeaderCell(new Cell().add(new Paragraph("Совпадение").setFont(bold)).setBackgroundColor(LIGHT_GRAY));
+
+            for (var fragment : plag.suspiciousFragments()) {
+                table.addCell(new Cell().add(new Paragraph("\"" + fragment.originalText() + "\"").setFont(regular).setFontSize(10)));
+                table.addCell(new Cell().add(new Paragraph(fragment.sourceDocumentName()).setFont(regular).setFontSize(10)));
+                table.addCell(new Cell().add(new Paragraph(fragment.similarityPercent() + "%").setFont(bold).setFontColor(RED).setFontSize(10)));
+            }
+            pdf.add(table);
+        } else {
+            pdf.add(new Paragraph("Документ прошёл проверку антиплагиата. Совпадений с другими документами в системе не обнаружено.")
+                    .setFont(regular).setFontSize(12).setFontColor(GREEN));
+        }
     }
 
     private void addViolationsPages(Document pdf,
