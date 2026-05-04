@@ -76,7 +76,7 @@ public class FixController {
 
             String fixedKey = documentAutoFixService.buildFixedKey(id, document.getOriginalFilename());
             byte[] fixedBytes = storageService.downloadBytes(fixedKey);
-            String filename = "fixed_" + stripExtension(document.getOriginalFilename()) + ".docx";
+            String filename = stripExtension(document.getOriginalFilename()) + ".docx";
 
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()

@@ -29,6 +29,7 @@ import ru.normacontrol.infrastructure.parser.DocumentType;
 import ru.normacontrol.infrastructure.parser.ParsedDocument;
 import ru.normacontrol.infrastructure.plagiarism.PlagiarismResult;
 import ru.normacontrol.infrastructure.report.ReportGenerator;
+import ru.normacontrol.infrastructure.webhook.WebhookNotificationService;
 import ru.normacontrol.infrastructure.websocket.ProgressPublisher;
 
 import java.io.InputStream;
@@ -56,6 +57,7 @@ public class CheckDocumentUseCase {
     private final ReportGenerator reportGenerator;
     private final DocumentParserChain parserChain;
     private final ru.normacontrol.infrastructure.plagiarism.PlagiarismChecker plagiarismChecker;
+    private final WebhookNotificationService webhookNotificationService;
 
     @Transactional
     @AuditLogged(action = "START_CHECK", resourceType = "DOCUMENT")
@@ -173,6 +175,8 @@ public class CheckDocumentUseCase {
         log.info("Документ {} проверен. Балл: {}/100, нарушений: {}",
           documentId, result.getComplianceScore(), violations.size());
 
+        webhookNotificationService.notifyCompleted(documentId, result);
+
         return CompletableFuture.completedFuture(result);
 
       } catch (Exception e) {
@@ -182,6 +186,7 @@ public class CheckDocumentUseCase {
         writeDocumentRepository.save(document);
         progressPublisher.publishProgress(documentId, 0,
           "FAILED", "Ошибка: " + e.getMessage());
+        webhookNotificationService.notifyFailed(documentId, e.getMessage());
         return CompletableFuture.failedFuture(e);
       }
     }

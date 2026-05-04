@@ -4,6 +4,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.normacontrol.application.dto.response.ScoreTrendDto;
@@ -11,6 +14,8 @@ import ru.normacontrol.application.dto.response.SectionComplianceDto;
 import ru.normacontrol.application.dto.response.ViolationStatDto;
 import ru.normacontrol.application.usecase.ViolationStatisticsUseCase;
 
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.List;
 
 /**
@@ -77,5 +82,41 @@ public class StatsController {
     )
     public ResponseEntity<List<SectionComplianceDto>> getBySection() {
         return ResponseEntity.ok(violationStatisticsUseCase.getComplianceBySection());
+    }
+
+    @GetMapping("/export.csv")
+    @Operation(summary = "Экспорт сводной статистики в CSV")
+    public ResponseEntity<byte[]> exportCsv() {
+        StringBuilder csv = new StringBuilder();
+        csv.append("section,rulePrefix,violationCount,violationShare,complianceRate\n");
+        for (SectionComplianceDto section : violationStatisticsUseCase.getComplianceBySection()) {
+            csv.append(escape(section.getSectionName())).append(',')
+                    .append(escape(section.getRulePrefix())).append(',')
+                    .append(section.getViolationCount()).append(',')
+                    .append(section.getViolationShare()).append(',')
+                    .append(section.getComplianceRate()).append('\n');
+        }
+
+        csv.append('\n').append("topViolationRule,count,description\n");
+        for (ViolationStatDto violation : violationStatisticsUseCase.getTopViolations(20)) {
+            csv.append(escape(violation.ruleCode())).append(',')
+                    .append(violation.count()).append(',')
+                    .append(escape(violation.description())).append('\n');
+        }
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename("normacontrol_stats_" + LocalDate.now() + ".csv", StandardCharsets.UTF_8)
+                        .build()
+                        .toString())
+                .contentType(new MediaType("text", "csv", StandardCharsets.UTF_8))
+                .body(csv.toString().getBytes(StandardCharsets.UTF_8));
+    }
+
+    private String escape(Object value) {
+        if (value == null) {
+            return "";
+        }
+        return "\"" + value.toString().replace("\"", "\"\"") + "\"";
     }
 }

@@ -59,6 +59,11 @@ spring:
 
 app:
   base-url: ${APP_BASE_URL:http://localhost:8080}
+  bootstrap:
+    admin:
+      email: ${BOOTSTRAP_ADMIN_EMAIL:admin@normacontrol.local}
+      name: ${BOOTSTRAP_ADMIN_NAME:Administrator}
+      password: ${BOOTSTRAP_ADMIN_PASSWORD:Admin1234!}
 
 jwt:
   secret: ${JWT_SECRET:normacontrol-secret-key-min-256-bits-change-in-prod}
@@ -97,9 +102,9 @@ kafka:
 
 springdoc:
   api-docs:
-    path: /api/docs
+    path: /api/openapi
   swagger-ui:
-    path: /api/swagger-ui
+    path: /api/docs
     operationsSorter: method
 
 logging:

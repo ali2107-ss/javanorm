@@ -16,6 +16,7 @@ public interface DocumentJpaRepository extends JpaRepository<DocumentJpaEntity, 
     List<DocumentJpaEntity> findByOwner_IdAndDeletedFalse(UUID ownerId);
     List<DocumentJpaEntity> findByStatusAndDeletedFalse(DocumentStatus status);
     long countByDeletedFalse();
+    long countByOwner_IdAndDeletedFalse(UUID ownerId);
 
     @Query("""
             SELECT d FROM DocumentJpaEntity d

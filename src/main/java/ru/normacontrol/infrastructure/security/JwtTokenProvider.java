@@ -9,6 +9,7 @@ import org.springframework.stereotype.Component;
 import ru.normacontrol.domain.entity.User;
 
 import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
 import java.util.Date;
 import java.util.stream.Collectors;
 
@@ -25,8 +26,16 @@ public class JwtTokenProvider {
     public JwtTokenProvider(
             @Value("${jwt.secret}") String secret,
             @Value("${jwt.access-token-expiration}") long accessTokenExpiration) {
-        this.key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+        this.key = Keys.hmacShaKeyFor(resolveSecret(secret));
         this.accessTokenExpiration = accessTokenExpiration;
+    }
+
+    private byte[] resolveSecret(String secret) {
+        try {
+            return Decoders.BASE64.decode(secret);
+        } catch (IllegalArgumentException ignored) {
+            return secret.getBytes(StandardCharsets.UTF_8);
+        }
     }
 
     /**

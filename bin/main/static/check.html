@@ -437,7 +437,7 @@
 
     function downloadReport() {
       if (!currentDocId) return;
-      downloadFile(`/api/v1/documents/${currentDocId}/report/download`, `${currentFileBase()}_report.pdf`);
+      downloadFile(`/api/v1/documents/${currentDocId}/report/download`, `${currentFileBase()}.pdf`);
     }
 
     async function autoFix() {
@@ -451,7 +451,7 @@
         if (res && res.fixedDocumentUrl) {
           const manualCount = (res.manualActions || []).length;
           showToast(`Авто-исправлено: ${res.fixedCount}. Ручных пунктов: ${manualCount}.`, 'success');
-          downloadFile(res.fixedDocumentUrl, `fixed_${currentFileBase()}.docx`);
+          downloadFile(res.fixedDocumentUrl, `${currentFileBase()}.docx`);
           if (manualCount > 0) {
             alert('Что нужно проверить вручную:\n\n' + res.manualActions.map((item, index) => `${index + 1}. ${item}`).join('\n'));
           }

@@ -2,6 +2,7 @@ package ru.normacontrol.infrastructure.init;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,14 +28,22 @@ public class DataInitializer implements CommandLineRunner {
     private final PasswordEncoder passwordEncoder;
     private final JdbcTemplate jdbcTemplate;
 
+    @Value("${app.bootstrap.admin.email:admin@normacontrol.local}")
+    private String adminEmail;
+
+    @Value("${app.bootstrap.admin.name:Administrator}")
+    private String adminName;
+
+    @Value("${app.bootstrap.admin.password:Admin1234!}")
+    private String adminPassword;
+
     @Override
     @Transactional
     public void run(String... args) {
         RoleJpaEntity userRole = createRoleIfMissing(RoleName.ROLE_USER);
         RoleJpaEntity adminRole = createRoleIfMissing(RoleName.ROLE_ADMIN);
 
-        createUserIfMissing("admin@demo.ru", "Administrator", "Admin1234!", Set.of(adminRole, userRole));
-        createUserIfMissing("user@demo.ru", "Student", "User1234!", Set.of(userRole));
+        createUserIfMissing(adminEmail, adminName, adminPassword, Set.of(adminRole, userRole));
 
         cleanupDemoSeedData();
     }

@@ -38,11 +38,11 @@
 
       <div class="form-group">
         <label class="form-label">Email</label>
-        <input type="email" id="email" class="form-control" placeholder="name@example.com" value="admin@demo.ru">
+        <input type="email" id="email" class="form-control" placeholder="name@example.com">
       </div>
       <div class="form-group" style="margin-bottom: 24px;">
         <label class="form-label">Пароль</label>
-        <input type="password" id="password" class="form-control" placeholder="••••••••" value="Admin1234!">
+        <input type="password" id="password" class="form-control" placeholder="••••••••">
       </div>
 
       <button class="btn-primary" id="loginBtn" onclick="login()" style="width: 100%; border-radius: 10px; padding: 14px; font-size: 16px; font-weight: 600; border: none; cursor: pointer; display: flex; justify-content: center; align-items: center; transition: 0.2s all ease;">
@@ -51,30 +51,11 @@
 
       <div style="text-align: center; color: var(--danger); margin-top: 12px; font-size: 14px; font-weight: 500;" id="errorBox"></div>
 
-      <div style="display: flex; align-items: center; margin: 32px 0;">
-        <div style="flex: 1; height: 1px; background: var(--border);"></div>
-        <div style="padding: 0 16px; color: var(--text-gray); font-size: 14px;">или</div>
-        <div style="flex: 1; height: 1px; background: var(--border);"></div>
-      </div>
-
-      <div style="border: 1.5px solid var(--border); border-radius: 12px; padding: 16px;">
-        <div style="font-size: 13px; color: var(--text-gray); font-weight: 500; margin-bottom: 12px; text-transform: uppercase;">Быстрый доступ</div>
-        <div style="display: flex; gap: 12px;">
-          <button class="btn btn-outline" style="flex: 1; border-color: var(--accent); color: var(--accent);" onclick="quickLogin('admin@demo.ru', 'Admin1234!')" onmouseover="this.style.background='var(--accent-light)'" onmouseout="this.style.background='transparent'">Администратор</button>
-          <button class="btn btn-outline" style="flex: 1; border-color: var(--accent); color: var(--accent);" onclick="quickLogin('user@demo.ru', 'User1234!')" onmouseover="this.style.background='var(--accent-light)'" onmouseout="this.style.background='transparent'">Студент</button>
-        </div>
-      </div>
     </div>
   </div>
 
   <script src="app.js"></script>
   <script>
-    function quickLogin(email, password) {
-      document.getElementById('email').value = email;
-      document.getElementById('password').value = password;
-      login();
-    }
-
     async function login() {
       const email = document.getElementById('email');
       const password = document.getElementById('password');

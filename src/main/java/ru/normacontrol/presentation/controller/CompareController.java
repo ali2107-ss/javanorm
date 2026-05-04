@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -43,16 +44,15 @@ public class CompareController {
             @Valid @RequestBody CompareRequest request,
             Principal principal) {
             
-        UUID userId = null;
-        if (principal != null) {
-            try {
-                userId = UUID.fromString(principal.getName());
-            } catch (IllegalArgumentException e) {
-                // Если имя не UUID, генерируем случайный (для тестов) или логируем
-                userId = UUID.randomUUID();
-            }
-        } else {
-            userId = UUID.randomUUID();
+        if (principal == null) {
+            throw new BadCredentialsException("Пользователь не авторизован");
+        }
+
+        UUID userId;
+        try {
+            userId = UUID.fromString(principal.getName());
+        } catch (IllegalArgumentException e) {
+            throw new BadCredentialsException("Некорректный пользователь в токене");
         }
 
         DocumentComparisonDto result = compareDocumentsUseCase.compare(

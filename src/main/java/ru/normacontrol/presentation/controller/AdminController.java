@@ -14,6 +14,7 @@ import ru.normacontrol.infrastructure.persistence.repository.CheckResultJpaRepos
 import ru.normacontrol.infrastructure.persistence.repository.DocumentJpaRepository;
 
 import java.util.Map;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Slf4j
@@ -33,22 +34,24 @@ public class AdminController {
     @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
     public ResponseEntity<?> getStats() {
         try {
-            long totalDocuments = documentJpaRepository.count();
+            long totalDocuments = documentJpaRepository.countByDeletedFalse();
             long totalChecks = checkResultJpaRepository.count();
+            long checksToday = checkResultJpaRepository.countByCheckedAtAfter(LocalDate.now().atStartOfDay());
 
             var allResults = checkResultJpaRepository.findAll();
             long passedDocuments = allResults.stream().filter(r -> r.getComplianceScore() >= 80).count();
             long failedDocuments = totalChecks - passedDocuments;
             double averageScore = allResults.stream()
                     .mapToInt(r -> r.getComplianceScore())
-                    .average().orElse(76.0);
+                    .average().orElse(0.0);
 
             return ResponseEntity.ok(Map.of(
                     "totalDocuments", totalDocuments,
                     "passedDocuments", passedDocuments,
                     "failedDocuments", failedDocuments,
                     "averageScore", Math.round(averageScore),
-                    "totalChecks", totalChecks
+                    "totalChecks", totalChecks,
+                    "checksToday", checksToday
             ));
         } catch (Exception e) {
             log.error("Ошибка получения статистики: {}", e.getMessage());

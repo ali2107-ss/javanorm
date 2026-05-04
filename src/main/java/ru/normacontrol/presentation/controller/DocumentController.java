@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import ru.normacontrol.application.dto.response.DocumentResponse;
+import ru.normacontrol.application.dto.response.CheckResultResponse;
+import ru.normacontrol.application.dto.response.ViolationResponse;
 import ru.normacontrol.application.usecase.CheckDocumentUseCase;
 import ru.normacontrol.application.usecase.DocumentUseCase;
 import ru.normacontrol.domain.entity.CheckResult;
@@ -94,6 +96,42 @@ public class DocumentController {
         }
     }
 
+    @GetMapping("/{documentId}/download")
+    @Operation(summary = "Скачать исходный документ")
+    @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
+    public ResponseEntity<byte[]> downloadOriginal(@PathVariable UUID documentId, Authentication authentication) {
+        try {
+            UUID userId = UUID.fromString(authentication.getName());
+            Document document = readDocumentRepository.findById(documentId)
+                    .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException(
+                            "Документ не найден: " + documentId));
+            if (!document.getOwnerId().equals(userId)) {
+                throw new SecurityException("Нет доступа к документу");
+            }
+
+            byte[] payload = storageService.downloadBytes(document.getStorageKey());
+            String filename = document.getOriginalFilename() != null && !document.getOriginalFilename().isBlank()
+                    ? document.getOriginalFilename()
+                    : "document-" + documentId;
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            ContentDisposition.attachment()
+                                    .filename(filename, StandardCharsets.UTF_8)
+                                    .build()
+                                    .toString())
+                    .contentType(resolveOriginalMediaType(document))
+                    .contentLength(payload.length)
+                    .body(payload);
+        } catch (SecurityException e) {
+            log.warn("Нет доступа к документу {}: {}", documentId, e.getMessage());
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        } catch (Exception e) {
+            log.error("Не удалось скачать исходный документ {}: {}", documentId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+    }
+
     @PostMapping("/{documentId}/check")
     @Operation(summary = "Запустить проверку документа")
     @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
@@ -127,9 +165,10 @@ public class DocumentController {
         try {
             UUID userId = UUID.fromString(authentication.getName());
             byte[] payload = documentUseCase.downloadLatestReport(documentId, userId);
+            Document sourceDocument = readDocumentRepository.findById(documentId).orElse(null);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
-                            .filename("report_" + documentId + ".pdf")
+                            .filename(buildReportFilename(sourceDocument, documentId), StandardCharsets.UTF_8)
                             .build()
                             .toString())
                     .contentType(MediaType.APPLICATION_PDF)
@@ -181,6 +220,51 @@ public class DocumentController {
         }
     }
 
+    @GetMapping("/{documentId}/report/json")
+    @Operation(summary = "Скачать JSON-отчёт")
+    @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
+    public ResponseEntity<CheckResultResponse> downloadJsonReport(
+            @PathVariable UUID documentId,
+            Authentication authentication) {
+        UUID userId = UUID.fromString(authentication.getName());
+        Document sourceDocument = readDocumentRepository.findById(documentId)
+                .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Документ не найден: " + documentId));
+        if (!sourceDocument.getOwnerId().equals(userId)) {
+            throw new SecurityException("Нет доступа к документу");
+        }
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(stripExtension(sourceDocument.getOriginalFilename()) + ".json", StandardCharsets.UTF_8)
+                                .build()
+                                .toString())
+                .body(checkDocumentUseCase.getLatestResult(documentId));
+    }
+
+    @GetMapping("/{documentId}/report/html")
+    @Operation(summary = "Скачать HTML-отчёт")
+    @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
+    public ResponseEntity<String> downloadHtmlReport(
+            @PathVariable UUID documentId,
+            Authentication authentication) {
+        UUID userId = UUID.fromString(authentication.getName());
+        Document sourceDocument = readDocumentRepository.findById(documentId)
+                .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException("Документ не найден: " + documentId));
+        if (!sourceDocument.getOwnerId().equals(userId)) {
+            throw new SecurityException("Нет доступа к документу");
+        }
+        CheckResultResponse result = checkDocumentUseCase.getLatestResult(documentId);
+        String filename = stripExtension(sourceDocument.getOriginalFilename()) + ".html";
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(filename, StandardCharsets.UTF_8)
+                                .build()
+                                .toString())
+                .contentType(MediaType.TEXT_HTML)
+                .body(buildHtmlReport(sourceDocument, result));
+    }
+
     private String buildReportFilename(Document sourceDocument, UUID documentId) {
         String baseName = sourceDocument != null ? sourceDocument.getOriginalFilename() : null;
         if (baseName == null || baseName.isBlank()) {
@@ -190,7 +274,79 @@ public class DocumentController {
         if (dot > 0) {
             baseName = baseName.substring(0, dot);
         }
-        return baseName + "_report.pdf";
+        return baseName + ".pdf";
+    }
+
+    private String stripExtension(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return "document";
+        }
+        int dot = filename.lastIndexOf('.');
+        return dot > 0 ? filename.substring(0, dot) : filename;
+    }
+
+    private String buildHtmlReport(Document document, CheckResultResponse result) {
+        StringBuilder html = new StringBuilder();
+        html.append("<!doctype html><html lang=\"ru\"><head><meta charset=\"utf-8\">")
+                .append("<title>Отчёт НормаКонтроль</title>")
+                .append("<style>body{font-family:Arial,sans-serif;margin:32px;line-height:1.45}")
+                .append("table{border-collapse:collapse;width:100%;margin-top:16px}td,th{border:1px solid #ddd;padding:8px}")
+                .append("th{background:#f5f5f5}.ok{color:#17803d}.bad{color:#b91c1c}</style>")
+                .append("</head><body>");
+        html.append("<h1>Отчёт НормаКонтроль</h1>");
+        html.append("<p><b>Документ:</b> ").append(escapeHtml(document.getOriginalFilename())).append("</p>");
+        html.append("<p><b>Балл:</b> ").append(result.getComplianceScore()).append("/100</p>");
+        html.append("<p><b>Вердикт:</b> <span class=\"")
+                .append(result.isPassed() ? "ok" : "bad")
+                .append("\">")
+                .append(result.isPassed() ? "соответствует" : "требует исправлений")
+                .append("</span></p>");
+        html.append("<p><b>Нарушений:</b> ").append(result.getTotalViolations()).append("</p>");
+        html.append("<table><thead><tr><th>Код</th><th>Критичность</th><th>Место</th><th>Описание</th><th>Рекомендация</th></tr></thead><tbody>");
+        for (ViolationResponse violation : result.getViolations()) {
+            html.append("<tr>")
+                    .append("<td>").append(escapeHtml(violation.getRuleCode())).append("</td>")
+                    .append("<td>").append(escapeHtml(violation.getSeverity())).append("</td>")
+                    .append("<td>стр. ").append(violation.getPageNumber()).append(", строка ").append(violation.getLineNumber()).append("</td>")
+                    .append("<td>").append(escapeHtml(violation.getDescription())).append("</td>")
+                    .append("<td>").append(escapeHtml(firstNonBlank(violation.getAiSuggestion(), violation.getSuggestion()))).append("</td>")
+                    .append("</tr>");
+        }
+        html.append("</tbody></table></body></html>");
+        return html.toString();
+    }
+
+    private String firstNonBlank(String first, String second) {
+        return first != null && !first.isBlank() ? first : (second == null ? "" : second);
+    }
+
+    private String escapeHtml(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#039;");
+    }
+
+    private MediaType resolveOriginalMediaType(Document document) {
+        String value = document.getContentType();
+        String filename = document.getOriginalFilename() != null ? document.getOriginalFilename().toLowerCase() : "";
+        if (value != null && value.contains("/")) {
+            return MediaType.parseMediaType(value);
+        }
+        if (filename.endsWith(".pdf") || "PDF".equalsIgnoreCase(value)) {
+            return MediaType.APPLICATION_PDF;
+        }
+        if (filename.endsWith(".docx") || "DOCX".equalsIgnoreCase(value)) {
+            return MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        }
+        if (filename.endsWith(".md") || "MD".equalsIgnoreCase(value)) {
+            return MediaType.TEXT_MARKDOWN;
+        }
+        return MediaType.APPLICATION_OCTET_STREAM;
     }
 
     @DeleteMapping("/{documentId}")

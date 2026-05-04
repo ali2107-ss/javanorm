@@ -62,6 +62,14 @@ public class UserJpaEntity {
     @Column(name = "lock_until")
     private LocalDateTime lockUntil;
 
+    @Column(name = "email_reports_enabled", nullable = false)
+    @Builder.Default
+    private boolean emailReportsEnabled = true;
+
+    @Column(name = "gost_updates_enabled", nullable = false)
+    @Builder.Default
+    private boolean gostUpdatesEnabled = false;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 

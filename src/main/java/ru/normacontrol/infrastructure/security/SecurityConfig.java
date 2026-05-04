@@ -35,6 +35,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**", "/v1/auth/**").permitAll()
                         .requestMatchers("/api/v1/system/**").permitAll()
                         .requestMatchers("/api/docs/**",
+                                "/api/docs",
+                                "/api/openapi/**",
                                 "/api/swagger-ui/**",
                                 "/v3/api-docs/**").permitAll()
                         .requestMatchers("/actuator/**").permitAll()
