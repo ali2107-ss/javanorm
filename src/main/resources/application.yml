@@ -56,6 +56,18 @@ spring:
           connectiontimeout: 5000
           timeout: 5000
           writetimeout: 5000
+  security:
+    oauth2:
+      client:
+        registration:
+          github:
+            client-id: ${GITHUB_CLIENT_ID:dummy-github-client-id}
+            client-secret: ${GITHUB_CLIENT_SECRET:dummy-github-client-secret}
+            scope: read:user,user:email
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:dummy-google-client-id}
+            client-secret: ${GOOGLE_CLIENT_SECRET:dummy-google-client-secret}
+            scope: openid,email,profile
 
 app:
   base-url: ${APP_BASE_URL:http://localhost:8080}
@@ -64,6 +76,8 @@ app:
       email: ${BOOTSTRAP_ADMIN_EMAIL:admin@normacontrol.local}
       name: ${BOOTSTRAP_ADMIN_NAME:Administrator}
       password: ${BOOTSTRAP_ADMIN_PASSWORD:Admin1234!}
+  security:
+    force-https: ${APP_FORCE_HTTPS:false}
 
 jwt:
   secret: ${JWT_SECRET:normacontrol-secret-key-min-256-bits-change-in-prod}
@@ -109,7 +123,7 @@ springdoc:
 
 logging:
   pattern:
-    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] [%X{traceId}] %-5level %logger{36} - %msg%n"
+    console: "{\"ts\":\"%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX}\",\"level\":\"%level\",\"traceId\":\"%X{traceId}\",\"thread\":\"%thread\",\"logger\":\"%logger{36}\",\"message\":\"%replace(%msg){'\"','\\\"'}\"}%n"
   level:
     ru.normacontrol: DEBUG
     org.springframework.kafka: WARN

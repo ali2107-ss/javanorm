@@ -21,11 +21,12 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(
             HttpSecurity http,
-            JwtAuthFilter jwtAuthFilter) throws Exception {
+            JwtAuthFilter jwtAuthFilter,
+            OAuth2AuthenticationSuccessHandler oauth2SuccessHandler) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm ->
-                        sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                        sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
                                 "/", "/**.html", "/**.js", 
@@ -33,6 +34,7 @@ public class SecurityConfig {
                                 "/static/**"
                         ).permitAll()
                         .requestMatchers("/api/v1/auth/**", "/v1/auth/**").permitAll()
+                        .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
                         .requestMatchers("/api/v1/system/**").permitAll()
                         .requestMatchers("/api/docs/**",
                                 "/api/docs",
@@ -42,6 +44,9 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/**").permitAll()
                         .requestMatchers("/ws/**").permitAll()
                         .anyRequest().authenticated()
+                )
+                .oauth2Login(oauth2 -> oauth2
+                        .successHandler(oauth2SuccessHandler)
                 )
                 .formLogin(form -> form.disable())
                 .httpBasic(basic -> basic.disable())

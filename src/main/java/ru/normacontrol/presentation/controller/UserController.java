@@ -11,6 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import ru.normacontrol.application.dto.request.ChangePasswordRequest;
+import ru.normacontrol.application.dto.request.UpdateProfileRequest;
 import ru.normacontrol.application.dto.response.ProfileStatsResponse;
 import ru.normacontrol.application.dto.response.UserResponse;
 import ru.normacontrol.application.usecase.UserManagementUseCase;
@@ -46,6 +47,15 @@ public class UserController {
         return ResponseEntity.ok(response);
     }
 
+    @PatchMapping("/me")
+    @Operation(summary = "Update current user profile")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<UserResponse> updateProfile(Authentication authentication,
+                                                      @Valid @RequestBody UpdateProfileRequest request) {
+        UUID userId = UUID.fromString(authentication.getName());
+        return ResponseEntity.ok(userManagementUseCase.updateProfile(userId, request));
+    }
+
     @GetMapping("/me/stats")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ProfileStatsResponse> getMyStats(Authentication authentication) {
@@ -64,6 +74,26 @@ public class UserController {
                 passed,
                 failed,
                 Math.round(average * 10.0) / 10.0
+        ));
+    }
+
+    @GetMapping("/me/export")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Map<String, Object>> exportMyPersonalData(Authentication authentication) {
+        UUID userId = UUID.fromString(authentication.getName());
+        UserResponse profile = userManagementUseCase.getProfile(userId);
+        long documents = documentJpaRepository.countByOwner_IdAndDeletedFalse(userId);
+        long checks = checkResultJpaRepository.countByDocument_Owner_Id(userId);
+        var user = userJpaRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+        return ResponseEntity.ok(Map.of(
+                "profile", profile,
+                "documentsCount", documents,
+                "checksCount", checks,
+                "notificationSettings", Map.of(
+                        "emailReportsEnabled", user.isEmailReportsEnabled(),
+                        "gostUpdatesEnabled", user.isGostUpdatesEnabled()
+                )
         ));
     }
 

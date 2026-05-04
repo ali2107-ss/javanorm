@@ -7,6 +7,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.normacontrol.application.dto.request.ChangePasswordRequest;
+import ru.normacontrol.application.dto.request.UpdateProfileRequest;
 import ru.normacontrol.application.dto.response.UserResponse;
 import ru.normacontrol.application.mapper.UserMapper;
 import ru.normacontrol.domain.entity.User;
@@ -35,6 +36,29 @@ public class UserManagementUseCase {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Пользователь не найден: " + userId));
         return userMapper.toResponse(user);
+    }
+
+    @Transactional
+    public UserResponse updateProfile(UUID userId, UpdateProfileRequest request) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + userId));
+
+        if (request.email() != null && !request.email().isBlank()
+                && !request.email().equalsIgnoreCase(user.getEmail())) {
+            if (userRepository.existsByEmail(request.email())) {
+                throw new IllegalArgumentException("Email already exists");
+            }
+            user.setEmail(request.email().trim().toLowerCase());
+        }
+
+        if (request.fullName() != null && !request.fullName().isBlank()) {
+            String fullName = request.fullName().trim();
+            user.setFullName(fullName);
+            user.setUsername(fullName);
+        }
+
+        user.setUpdatedAt(LocalDateTime.now());
+        return userMapper.toResponse(userRepository.save(user));
     }
 
     /**

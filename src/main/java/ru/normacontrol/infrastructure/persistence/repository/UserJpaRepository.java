@@ -12,6 +12,7 @@ import java.util.UUID;
 public interface UserJpaRepository extends JpaRepository<UserJpaEntity, UUID> {
     Optional<UserJpaEntity> findByEmail(String email);
     Optional<UserJpaEntity> findByDisplayName(String displayName);
+    Optional<UserJpaEntity> findByOauthProviderAndOauthProviderId(String oauthProvider, String oauthProviderId);
     boolean existsByEmail(String email);
     boolean existsByDisplayName(String displayName);
     long countByLastLoginAtAfter(LocalDateTime since);

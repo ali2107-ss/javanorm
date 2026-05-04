@@ -49,6 +49,25 @@ services:
       timeout: 5s
       retries: 5
 
+  postgres-backup:
+    image: prodrigestivill/postgres-backup-local:16-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_DB: normacontrol
+      POSTGRES_USER: norma
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      SCHEDULE: "@every 6h"
+      BACKUP_KEEP_DAYS: 30
+      BACKUP_KEEP_WEEKS: 0
+      BACKUP_KEEP_MONTHS: 0
+      HEALTHCHECK_PORT: 8080
+    volumes:
+      - postgres_backups:/backups
+    restart: unless-stopped
+
   redis:
     image: redis:7-alpine
     command: >
@@ -120,5 +139,6 @@ services:
 
 volumes:
   postgres_data:
+  postgres_backups:
   minio_data:
   grafana_data:

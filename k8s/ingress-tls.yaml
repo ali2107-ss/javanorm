@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: normacontrol-api
+  namespace: normacontrol
+  annotations:
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+spec:
+  tls:
+    - hosts:
+        - normacontrol.local
+      secretName: normacontrol-tls
+  rules:
+    - host: normacontrol.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: normacontrol-api
+                port:
+                  number: 8080

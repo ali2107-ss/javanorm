@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import ru.normacontrol.application.dto.response.DocumentResponse;
@@ -34,8 +35,10 @@ import ru.normacontrol.infrastructure.minio.MinioStorageService;
 import ru.normacontrol.infrastructure.report.ReportGenerator;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.time.LocalDate;
 import java.nio.charset.StandardCharsets;
 
 @Slf4j
@@ -73,14 +76,55 @@ public class DocumentController {
     @GetMapping
     @Operation(summary = "Получить список документов")
     @PreAuthorize("hasAnyRole('USER', 'REVIEWER', 'ADMIN')")
-    public ResponseEntity<?> getMyDocuments(Authentication authentication) {
+    public ResponseEntity<?> getMyDocuments(Authentication authentication,
+                                            @RequestParam(required = false) String status,
+                                            @RequestParam(required = false) String type,
+                                            @RequestParam(required = false) String createdFrom,
+                                            @RequestParam(required = false) String createdTo) {
         try {
             UUID userId = UUID.fromString(authentication.getName());
-            return ResponseEntity.ok(documentUseCase.getByOwner(userId));
+            List<DocumentResponse> documents = documentUseCase.getByOwner(userId).stream()
+                    .filter(document -> matchesStatus(document, status))
+                    .filter(document -> matchesType(document, type))
+                    .filter(document -> matchesDateRange(document, createdFrom, createdTo))
+                    .toList();
+            return ResponseEntity.ok(documents);
         } catch (Exception e) {
             log.error("Ошибка: {}", e.getMessage(), e);
             return ResponseEntity.ok(List.of());
         }
+    }
+
+    private boolean matchesStatus(DocumentResponse document, String status) {
+        return status == null || status.isBlank()
+                || status.equalsIgnoreCase(document.getStatus());
+    }
+
+    private boolean matchesType(DocumentResponse document, String type) {
+        if (type == null || type.isBlank()) {
+            return true;
+        }
+        String expected = type.trim().replace(".", "").toUpperCase(Locale.ROOT);
+        String filename = document.getOriginalFilename() != null
+                ? document.getOriginalFilename().toUpperCase(Locale.ROOT)
+                : "";
+        String contentType = document.getContentType() != null
+                ? document.getContentType().toUpperCase(Locale.ROOT)
+                : "";
+        return filename.endsWith("." + expected) || contentType.contains(expected);
+    }
+
+    private boolean matchesDateRange(DocumentResponse document, String createdFrom, String createdTo) {
+        if (document.getCreatedAt() == null) {
+            return true;
+        }
+        LocalDate created = document.getCreatedAt().toLocalDate();
+        if (createdFrom != null && !createdFrom.isBlank()
+                && created.isBefore(LocalDate.parse(createdFrom))) {
+            return false;
+        }
+        return createdTo == null || createdTo.isBlank()
+                || !created.isAfter(LocalDate.parse(createdTo));
     }
 
     @GetMapping("/{documentId}")

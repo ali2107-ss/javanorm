@@ -20,5 +20,6 @@
     <include file="db/changelog/V11__add_plagiarism_to_check_results.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/V12__add_user_notification_settings.sql" relativeToChangelogFile="false"/>
     <include file="db/changelog/V13__create_document_webhooks.sql" relativeToChangelogFile="false"/>
+    <include file="db/changelog/V14__enable_pgcrypto.sql" relativeToChangelogFile="false"/>
 
 </databaseChangeLog>
